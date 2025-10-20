@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Canva Pro",
+    "description": "Tài khoản Canva Pro trọn đời, nâng cấp trên chính email của bạn. Tận hưởng tất cả các tính năng thiết kế chuyên nghiệp.",
+    "price": 150000,
+    "image": "https://placehold.co/600x400/00C4CC/FFFFFF?text=Canva+Pro",
+    "link": ""
+  },
+  {
+    "name": "YouTube Premium",
+    "description": "Xem video không quảng cáo, phát trong nền và tải video. Tận hưởng YouTube Music Premium. Bảo hành 1 năm.",
+    "price": 99000,
+    "image": "https://placehold.co/600x400/FF0000/FFFFFF?text=YouTube+Premium",
+    "link": ""
+  },
+  {
+    "name": "CapCut Pro",
+    "description": "Mở khóa toàn bộ tính năng chỉnh sửa video chuyên nghiệp trên CapCut. Hiệu ứng, bộ lọc, và công cụ AI độc quyền.",
+    "price": 120000,
+    "image": "https://placehold.co/600x400/000000/FFFFFF?text=CapCut+Pro",
+    "link": ""
+  }
+]
