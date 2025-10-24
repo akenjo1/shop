@@ -4,44 +4,1032 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cửa Hàng Kỹ Thuật Số</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>/* Các style giữ nguyên như cũ */</style>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
+        .modal-bg { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .panel { 
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out; 
+            background-color: #1f2937;
+        }
+        .panel.is-open { transform: translateX(0); }
+        .form-input, .form-select, .form-textarea { 
+            background-color: #374151; 
+            border: 1px solid #4b5563; 
+            color: white; 
+            border-radius: 0.5rem; 
+            padding: 0.75rem 1rem;
+            width: 100%;
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-block;
+            width: 100%;
+        }
+        .btn-primary { background-color: #4f46e5; color: white; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-primary:disabled { background-color: #374151; cursor: not-allowed; }
+        .btn-secondary { background-color: #4b5563; color: white; }
+        .btn-secondary:hover { background-color: #6b7280; }
+        .nav-tab {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid transparent;
+            color: #9ca3af;
+        }
+        .nav-tab.active {
+            color: #4f46e5;
+            border-bottom-color: #4f46e5;
+        }
+        .activity-feed-item {
+            display: flex;
+            align-items: center;
+            background-color: rgba(31, 41, 55, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* QR Code Modal */
+        #qr-modal-content {
+            animation: zoomIn 0.3s ease-out;
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
 </head>
 <body class="antialiased">
-    <!-- Toàn bộ cấu trúc HTML của trang bán hàng giữ nguyên -->
-    <!-- ... -->
+
+    <!-- Top Menu Button -->
+    <div class="fixed top-0 right-0 p-4 z-40">
+        <button id="menu-btn" class="text-white bg-gray-800 bg-opacity-70 p-3 rounded-full shadow-lg">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Feedback Button -->
+    <div class="fixed bottom-4 right-4 z-40">
+        <button id="feedback-btn" class="text-white bg-blue-600 p-3 rounded-full shadow-lg">
+            <i class="fas fa-comment-dots text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="container mx-auto px-4 py-8 md:py-12">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">Cửa Hàng Kỹ Thuật Số</h1>
+            <p class="text-lg text-gray-400">Tài khoản CapCut, YouTube, Canva và hơn thế nữa!</p>
+        </header>
+        <main id="product-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+            <!-- Loading Skeleton -->
+            <div class="product-skeleton bg-gray-800 p-5 rounded-lg shadow-lg animate-pulse">
+                <div class="w-full h-48 bg-gray-700 rounded mb-4"></div>
+                <div class="h-6 bg-gray-700 rounded w-3/4 mb-2"></div>
+                <div class="h-4 bg-gray-700 rounded w-1/2 mb-4"></div>
+                <div class="h-10 bg-gray-700 rounded w-full"></div>
+            </div>
+            <!-- Products will be loaded here by JavaScript -->
+        </main>
+    </div>
+
+    <!-- Activity Feed Section -->
+    <section class="container mx-auto px-4 py-8">
+        <h2 class="text-2xl font-bold text-white mb-6 text-center">Hoạt Động Mới Nhất</h2>
+        <div id="activity-feed" class="max-w-3xl mx-auto">
+            <!-- Activity items will be loaded here by JavaScript -->
+        </div>
+    </section>
+
+    <!-- Side Panel (Menu / Auth) -->
+    <div id="side-panel" class="panel fixed top-0 right-0 w-full md:w-96 h-full z-50 overflow-y-auto p-6 md:p-8 shadow-2xl">
+        <button id="close-panel-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+            <i class="fas fa-times text-2xl"></i>
+        </button>
+        
+        <!-- Loading State -->
+        <div id="panel-loading" class="flex items-center justify-center h-full">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Auth View (Logged Out) -->
+        <div id="auth-view" class="hidden">
+            <div class="flex border-b border-gray-700 mb-6">
+                <div id="login-tab-btn" class="nav-tab active">Đăng Nhập</div>
+                <div id="register-tab-btn" class="nav-tab">Đăng Ký</div>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="login-email" class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="login-email" class="form-input" required>
+                </div>
+                <div class="mb-4">
+                    <label for="login-password" class="block text-sm font-medium mb-2">Mật khẩu</label>
+                    <input type="password" id="login-password" class="form-input" required>
+                </div>
+                <div class="flex items-center justify-between mb-6 text-sm">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="login-remember" class="w-4 h-4 rounded bg-gray-700 border-gray-600">
+                        <span class="ml-2">Ghi nhớ tôi</span>
+                    </label>
+                    <a href="#" id="forgot-password-btn" class="text-indigo-400 hover:text-indigo-300">Quên mật khẩu?</a>
+                </div>
+                <button type="submit" id="login-submit" class="btn btn-primary">
+                    <span class="btn-text">Đăng Nhập</span>
+                    <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="hidden">
+                <div class="mb-4">
+                    <label for="register-email" class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="register-email" class="form-input" required>
+                </div>
+                <div class="mb-4">
+                    <label for="register-password" class="block text-sm font-medium mb-2">Mật khẩu</dixlabel>
+                    <input type="password" id="register-password" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label for="register-confirm-password" class="block text-sm font-medium mb-2">Xác nhận mật khẩu</label>
+                    <input type="password" id="register-confirm-password" class="form-input" required>
+                    <p id="password-mismatch" class="text-red-400 text-sm mt-2 hidden">Mật khẩu không trùng khớp!</p>
+                </div>
+                <button type="submit" id="register-submit" class="btn btn-primary">
+                    <span class="btn-text">Đăng Ký</span>
+                    <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Main Menu View (Logged In) -->
+        <div id="menu-view" class="hidden">
+            <div class="text-center mb-6">
+                <i class="fas fa-user-circle text-6xl text-gray-500 mb-3"></i>
+                <h2 id="user-email" class="text-lg font-semibold text-white"></h2>
+                <p class="text-sm text-gray-400">Số dư:</p>
+                <p id="user-balance" class="text-2xl font-bold text-green-400">0 VND</p>
+            </div>
+            
+            <nav class="space-y-4">
+                <button id="deposit-menu-btn" class="btn btn-secondary w-full text-left">
+                    <i class="fas fa-wallet w-6"></i> Nạp Tiền
+                </button>
+                <button id="purchase-history-menu-btn" class="btn btn-secondary w-full text-left">
+                    <i class="fas fa-history w-6"></i> Tài Khoản Đã Mua
+                </button>
+                <button id="logout-btn" class="btn btn-secondary w-full text-left text-red-400 hover:bg-red-800">
+                    <i class="fas fa-sign-out-alt w-6"></i> Đăng Xuất
+                </button>
+            </nav>
+        </div>
+
+        <!-- Deposit View -->
+        <div id="deposit-view" class="hidden">
+            <button class="back-to-menu-btn text-gray-400 hover:text-white mb-4">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </button>
+            <h2 class="text-2xl font-bold text-white mb-6">Nạp Tiền</h2>
+            <form id="deposit-form">
+                <div class="mb-4">
+                    <label for="deposit-bank" class="block text-sm font-medium mb-2">Chọn ngân hàng của BẠN</label>
+                    <select id="deposit-bank" class="form-select" required>
+                        <option value="">Đang tải danh sách ngân hàng...</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="deposit-amount" class="block text-sm font-medium mb-2">Số tiền (VND)</label>
+                    <input type="number" id="deposit-amount" class="form-input" placeholder="Nhập số tiền" required min="10000">
+                    <p class="text-xs text-gray-400 mt-2">Nạp tối thiểu 10,000 VND</p>
+                </div>
+                <button type="submit" id="deposit-submit" class="btn btn-primary">
+                    <span class="btn-text">Tạo Mã QR</span>
+                    <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Purchase History View -->
+        <div id="purchase-history-view" class="hidden">
+            <button class="back-to-menu-btn text-gray-400 hover:text-white mb-4">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </button>
+            <h2 class="text-2xl font-bold text-white mb-6">Tài Khoản Đã Mua</h2>
+            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-4" role="alert">
+                <p class="font-bold">Chú ý!</p>
+                <p>Tài khoản đã mua sẽ được lưu trữ tại đây trong vòng 7 ngày. Vui lòng đổi mật khẩu ngay sau khi nhận.</p>
+            </div>
+            <div id="purchase-list" class="space-y-4">
+                <!-- Purchase items will be loaded here -->
+            </div>
+        </div>
+    </div>
+    <!-- End Side Panel -->
+
+    <!-- Global Modals -->
+
+    <!-- Purchase Confirmation Modal -->
+    <div id="purchase-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div id="purchase-modal-content" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-2xl font-bold text-white mb-4">Xác nhận mua hàng</h2>
+            <div class="mb-4">
+                <p class="text-gray-400">Sản phẩm:</p>
+                <h3 id="modal-product-name" class="text-lg font-semibold text-white"></h3>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-400 mb-2">Số lượng:</label>
+                <div class="flex items-center">
+                    <button id="modal-qty-decrease" class="bg-gray-700 px-4 py-2 rounded-l-lg hover:bg-gray-600">-</button>
+                    <input id="modal-qty-input" type="number" value="1" min="1" class="form-input text-center w-20 rounded-none">
+                    <button id="modal-qty-increase" class="bg-gray-700 px-4 py-2 rounded-r-lg hover:bg-gray-600">+</button>
+                </div>
+            </div>
+            <div class="mb-6">
+                <p class="text-gray-400">Tổng tiền:</p>
+                <p id="modal-total-price" class="text-3xl font-bold text-green-400"></p>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="modal-cancel-btn" class="btn btn-secondary w-auto">Hủy</button>
+                <button id="modal-confirm-btn" class="btn btn-primary w-auto">
+                    <span class="btn-text">Mua Ngay</span>
+                    <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div id="qr-modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center text-gray-900">
+            <h2 class="text-xl font-bold mb-4">Quét Mã Để Nạp Tiền</h2>
+            <div id="qr-code-container" class="flex justify-center items-center w-64 h-64 mx-auto mb-4 bg-gray-100 rounded">
+                <div class="spinner text-indigo-600"></div>
+            </div>
+            <p class="text-sm text-gray-600">Sử dụng app ngân hàng hoặc ví điện tử để quét mã.</p>
+            <p class="font-bold text-red-600 my-2">Nội dung chuyển khoản:</p>
+            <div class="bg-gray-100 p-3 rounded-lg">
+                <p id="qr-deposit-code" class="text-lg font-mono font-bold text-indigo-600"></p>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Tuyệt đối không sửa nội dung chuyển khoản!</p>
+            <p class="text-sm font-semibold mt-4">Trạng thái: <span id="qr-status" class="text-yellow-500">Đang chờ thanh toán...</span></p>
+            <button id="qr-close-btn" class="btn btn-secondary w-full mt-6">Đóng</button>
+        </div>
+    </div>
+    
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-2xl font-bold text-white mb-4">Gửi Góp Ý Cho Shop</h2>
+            <form id="feedback-form">
+                <textarea id="feedback-textarea" class="form-textarea w-full" rows="5" placeholder="Mong shop thêm..." required></textarea>
+                <div class="flex justify-end space-x-4 mt-4">
+                    <button type="button" id="feedback-cancel-btn" class="btn btn-secondary w-auto">Hủy</button>
+                    <button type="submit" id="feedback-submit-btn" class="btn btn-primary w-auto">
+                        <span class="btn-text">Gửi</span>
+                        <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alert Toast -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 transition-all duration-300 -translate-y-10">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Firebase SDK -->
+    <!-- Đã import ở <head> -->
 
     <script>
         // BƯỚC 2.2: DÁN CẤU HÌNH SUPABASE CỦA BẠN VÀO ĐÂY
         const SUPABASE_URL = 'https://okzaxfrazdowplynvpps.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ
 
-        if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-            alert("VUI LÒNG CẤU HÌNH SUPABASE TRONG FILE index.html TRƯỚC KHI SỬ DỤNG!");
-        }
+';
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // BƯỚC 3.2: DÁN URL APPS SCRIPT CỦA BẠN VÀO ĐÂY
+        const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL';
+        
+        // BƯỚC 3.2 (Góp ý): DÁN URL APPS SCRIPT GÓP Ý VÀO ĐÂY
+        const FEEDBACK_SCRIPT_URL = 'YOUR_FEEDBACK_APPS_SCRIPT_URL';
 
-        // --- Logic ứng dụng sẽ được viết lại hoàn toàn để sử dụng Supabase ---
-        // Ví dụ: Đăng ký, đăng nhập, lấy sản phẩm, mua hàng...
-        
-        // Ví dụ hàm đăng nhập với Supabase
-        async function handleLogin(email, password) {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
-            if (error) {
-                alert("Lỗi đăng nhập: " + error.message);
-            } else {
-                // Đăng nhập thành công, đóng modal và tải lại thông tin user
-                console.log("Đăng nhập thành công!", data.user);
-                window.location.reload();
+        // --- TOÀN BỘ LOGIC CỦA ỨNG DỤNG ---
+
+        // Utility Functions
+        const $ = (selector) => document.querySelector(selector);
+        const $$ = (selector) => document.querySelectorAll(selector);
+        const show = (el) => el.classList.remove('hidden');
+        const hide = (el) => el.classList.add('hidden');
+        const toggle = (el) => el.classList.toggle('hidden');
+        const enable = (btn) => {
+            btn.disabled = false;
+            hide(btn.querySelector('.btn-loader'));
+            show(btn.querySelector('.btn-text'));
+        };
+        const disable = (btn) => {
+            btn.disabled = true;
+            show(btn.querySelector('.btn-loader'));
+            hide(btn.querySelector('.btn-text'));
+        };
+
+        const showToast = (message, isError = false) => {
+            const toast = $('#toast');
+            $('#toast-message').textContent = message;
+            toast.classList.toggle('bg-green-500', !isError);
+            toast.classList.toggle('bg-red-500', isError);
+            toast.classList.remove('opacity-0', '-translate-y-10');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-10');
+            }, 3000);
+        };
+
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        };
+
+        // --- State Management ---
+        let appState = {
+            supabase: null,
+            user: null,
+            userData: null,
+            currentProduct: null,
+            purchaseQuantity: 1,
+            banks: [],
+        };
+
+        // --- Panel & View Management ---
+        const panel = {
+            el: $('#side-panel'),
+            views: ['#panel-loading', '#auth-view', '#menu-view', '#deposit-view', '#purchase-history-view'],
+            showView(viewId) {
+                this.views.forEach(v => hide($(v)));
+                show($(viewId));
+            },
+            open() {
+                this.el.classList.add('is-open');
+                document.body.style.overflow = 'hidden';
+            },
+            close() {
+                this.el.classList.remove('is-open');
+                document.body.style.overflow = 'auto';
+            },
+            toggleAuthTab(tab) {
+                if (tab === 'login') {
+                    show($('#login-form'));
+                    hide($('#register-form'));
+                    $('#login-tab-btn').classList.add('active');
+                    $('#register-tab-btn').classList.remove('active');
+                } else {
+                    hide($('#login-form'));
+                    show($('#register-form'));
+                    $('#login-tab-btn').classList.remove('active');
+                    $('#register-tab-btn').classList.add('active');
+                }
             }
+        };
+
+        // --- Auth Service (Supabase) ---
+        const auth = {
+            async init() {
+                appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Handle session logic
+                const { data: { session }, error } = await appState.supabase.auth.getSession();
+                if (session) {
+                    appState.user = session.user;
+                    await this.fetchUserData();
+                } else {
+                    this.showLogin();
+                }
+
+                // Listen for auth state changes
+                appState.supabase.auth.onAuthStateChange(async (event, session) => {
+                    appState.user = session?.user || null;
+                    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+                        await this.fetchUserData();
+                    }
+                    if (event === 'SIGNED_OUT') {
+                        appState.userData = null;
+                        this.showLogin();
+                    }
+                });
+            },
+
+            async fetchUserData() {
+                if (!appState.user) return this.showLogin();
+                
+                panel.showView('#panel-loading');
+                const { data, error } = await appState.supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', appState.user.id)
+                    .single();
+                
+                if (data) {
+                    appState.userData = data;
+                    this.showMenu();
+                    this.updateUI();
+                } else {
+                    console.error("Error fetching user data:", error);
+                    this.showLogin();
+                }
+            },
+
+            async login(email, password) {
+                const btn = $('#login-submit');
+                disable(btn);
+                const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    showToast(error.message, true);
+                    enable(btn);
+                } else {
+                    // onAuthStateChange will handle success
+                    showToast("Đăng nhập thành công!");
+                }
+            },
+
+            async register(email, password) {
+                const btn = $('#register-submit');
+                disable(btn);
+                const { error } = await appState.supabase.auth.signUp({ email, password });
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Đăng ký thành công! Vui lòng kiểm tra email để xác thực.");
+                    panel.toggleAuthTab('login');
+                }
+                enable(btn);
+            },
+
+            async logout() {
+                await appState.supabase.auth.signOut();
+                panel.close();
+                showToast("Đã đăng xuất.");
+            },
+            
+            async resetPassword(email) {
+                const { error } = await appState.supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.href // Redirect back to app
+                });
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Đã gửi link reset mật khẩu. Vui lòng kiểm tra email.");
+                }
+            },
+
+            showLogin() {
+                panel.showView('#auth-view');
+                panel.toggleAuthTab('login');
+            },
+
+            showMenu() {
+                panel.showView('#menu-view');
+            },
+
+            updateUI() {
+                if (appState.userData) {
+                    $('#user-email').textContent = appState.userData.username || appState.user.email;
+                    $('#user-balance').textContent = formatCurrency(appState.userData.balance);
+                }
+            }
+        };
+
+        // --- Product Service ---
+        const products = {
+            async fetch() {
+                const { data, error } = await appState.supabase
+                    .from('products')
+                    .select('*');
+
+                if (error) {
+                    console.error("Error fetching products:", error);
+                    $('#product-list').innerHTML = `<p class="text-center text-red-400 col-span-full">Không thể tải sản phẩm.</p>`;
+                    return;
+                }
+                
+                this.render(data);
+            },
+
+            render(productList) {
+                const listEl = $('#product-list');
+                listEl.innerHTML = ''; // Clear skeletons
+                if (productList.length === 0) {
+                    listEl.innerHTML = `<p class="text-center text-gray-400 col-span-full">Chưa có sản phẩm nào để bán.</p>`;
+                    return;
+                }
+                
+                productList.forEach(product => {
+                    const el = document.createElement('div');
+                    el.className = 'bg-gray-800 p-5 rounded-lg shadow-lg flex flex-col';
+                    el.innerHTML = `
+                        <img src="${product.image_url || 'https://placehold.co/600x400/374151/FFFFFF?text=Product'}" alt="${product.name}" class="w-full h-48 object-cover rounded mb-4">
+                        <h3 class="text-xl font-bold text-white mb-2">${product.name}</h3>
+                        <p class="text-gray-400 text-sm mb-4 flex-grow">${product.description}</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-2xl font-bold text-green-400">${formatCurrency(product.price)}</span>
+                            <button class="btn btn-primary w-auto buy-btn" data-id="${product.id}">Mua Ngay</button>
+                        </div>
+                    `;
+                    el.querySelector('.buy-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (!appState.user) {
+                            showToast("Vui lòng đăng nhập để mua hàng!", true);
+                            panel.open();
+                            return;
+                        }
+                        this.openPurchaseModal(product);
+                    });
+                    listEl.appendChild(el);
+                });
+            },
+            
+            openPurchaseModal(product) {
+                appState.currentProduct = product;
+                appState.purchaseQuantity = 1;
+
+                $('#modal-product-name').textContent = product.name;
+                $('#modal-qty-input').value = 1;
+                $('#modal-total-price').textContent = formatCurrency(product.price);
+                
+                show($('#purchase-modal'));
+            },
+
+            updatePurchaseModalQty() {
+                const qty = parseInt($('#modal-qty-input').value);
+                if (isNaN(qty) || qty < 1) {
+                    appState.purchaseQuantity = 1;
+                    $('#modal-qty-input').value = 1;
+                } else {
+                    appState.purchaseQuantity = qty;
+                }
+                const total = appState.currentProduct.price * appState.purchaseQuantity;
+                $('#modal-total-price').textContent = formatCurrency(total);
+            },
+
+            async confirmPurchase() {
+                const btn = $('#modal-confirm-btn');
+                disable(btn);
+
+                const product = appState.currentProduct;
+                const quantity = appState.purchaseQuantity;
+                const totalPrice = product.price * quantity;
+
+                // Client-side balance check
+                if (appState.userData.balance < totalPrice) {
+                    showToast("Số dư không đủ. Vui lòng nạp thêm!", true);
+                    enable(btn);
+                    hide($('#purchase-modal'));
+                    panel.open();
+                    panel.showView('#deposit-view');
+                    return;
+                }
+
+                // Call Supabase RPC function to handle purchase
+                const { data, error } = await appState.supabase.rpc('handle_purchase', {
+                    p_product_id: product.id,
+                    p_quantity: quantity,
+                    p_total_price: totalPrice,
+                    p_user_id: appState.user.id
+                });
+                
+                enable(btn);
+
+                if (error) {
+                    showToast(error.message, true);
+                } else if (data.success) {
+                    showToast(data.message);
+                    hide($('#purchase-modal'));
+                    // Update user balance locally
+                    appState.userData.balance = data.new_balance;
+                    auth.updateUI();
+                } else {
+                    showToast(data.message, true);
+                }
+            }
+        };
+
+        // --- Deposit Service ---
+        const deposit = {
+            async fetchBanks() {
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=getBanks`);
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        appState.banks = data.data;
+                        const selectEl = $('#deposit-bank');
+                        selectEl.innerHTML = '<option value="">Chọn ngân hàng</option>';
+                        appState.banks.forEach(bank => {
+                            selectEl.innerHTML += `<option value='${JSON.stringify(bank)}'>${bank.name} (${bank.accountNo})</option>`;
+                        });
+                    } else {
+                        throw new Error(data.message);
+                    }
+                } catch (error) {
+                    console.error("Error fetching banks:", error);
+                    $('#deposit-bank').innerHTML = '<option value="">Lỗi khi tải ngân hàng</option>';
+                }
+            },
+            
+            async createDeposit(bank, amount) {
+                const btn = $('#deposit-submit');
+                disable(btn);
+
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'createDeposit',
+                            userId: appState.user.id,
+                            username: appState.userData.username,
+                            bankName: bank.name,
+                            amount: amount
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        this.showQRModal(data.data, bank, amount);
+                    } else {
+                        throw new Error(data.message);
+                    }
+
+                } catch (error) {
+                    showToast(error.message, true);
+                } finally {
+                    enable(btn);
+                }
+            },
+            
+            showQRModal(depositData, bank, amount) {
+                const { depositCode } = depositData;
+                
+                // Hiển thị modal
+                show($('#qr-modal'));
+                panel.close();
+
+                $('#qr-deposit-code').textContent = depositCode;
+                $('#qr-status').textContent = 'Đang chờ thanh toán...';
+                $('#qr-status').className = 'text-yellow-500';
+                
+                // Tạo QR code
+                const qrContainer = $('#qr-code-container');
+                qrContainer.innerHTML = '<div class="spinner text-indigo-600"></div>';
+                
+                // VietQR API
+                const qrApiUrl = `https://api.vietqr.io/v2/generate`;
+                fetch(qrApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'x-client-id': 'CLIENT_ID_DUMMY', // API này vẫn chạy với ID/Key giả
+                        'x-api-key': 'API_KEY_DUMMY',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        accountNo: bank.accountNo,
+                        accountName: bank.accountName,
+                        acqId: bank.bin,
+                        amount: amount,
+                        addInfo: depositCode,
+                        format: "qr_only",
+                        template: "compact"
+                    })
+                })
+                .then(res => res.json())
+                .then(qrData => {
+                    if (qrData.code === '00') {
+                        qrContainer.innerHTML = `<img src="${qrData.data.qrDataURL}" alt="QR Code" class="w-full h-full">`;
+                    } else {
+                        throw new Error(qrData.desc);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error generating QR:", err);
+                    qrContainer.innerHTML = `<p class="text-red-500 text-sm">Lỗi tạo QR. Vui lòng sao chép nội dung và chuyển khoản thủ công.</p>`;
+                });
+                
+                // Lắng nghe thanh toán
+                this.listenForPayment(depositCode);
+            },
+            
+            listenForPayment(code) {
+                // Supabase Realtime
+                const channel = appState.supabase
+                    .channel(`deposits:${code}`)
+                    .on('postgres_changes', 
+                        { 
+                            event: 'UPDATE', 
+                            schema: 'public', 
+                            table: 'deposits', 
+                            filter: `code=eq.${code}` 
+                        }, 
+                        (payload) => {
+                            if (payload.new.status === 'completed') {
+                                $('#qr-status').textContent = 'Thành công!';
+                                $('#qr-status').className = 'text-green-500';
+                                showToast("Nạp tiền thành công!");
+                                // Cập nhật số dư
+                                appState.userData.balance += payload.new.amount;
+                                auth.updateUI();
+                                channel.unsubscribe();
+                            }
+                        }
+                    )
+                    .subscribe();
+                
+                $('#qr-close-btn').onclick = () => {
+                    channel.unsubscribe();
+                    hide($('#qr-modal'));
+                };
+            }
+        };
+
+        // --- Purchase History Service ---
+        const history = {
+            async fetch() {
+                panel.showView('#purchase-history-view');
+                const listEl = $('#purchase-list');
+                listEl.innerHTML = '<div class="spinner mx-auto"></div>';
+
+                const { data, error } = await appState.supabase
+                    .from('purchases')
+                    .select('*')
+                    .eq('user_id', appState.user.id)
+                    .order('purchased_at', { ascending: false })
+                    .limit(50);
+                
+                if (error) {
+                    listEl.innerHTML = `<p class="text-red-400">Lỗi khi tải lịch sử mua hàng.</p>`;
+                    return;
+                }
+                
+                if (data.length === 0) {
+                    listEl.innerHTML = `<p class="text-gray-400">Bạn chưa mua tài khoản nào.</p>`;
+                    return;
+                }
+                
+                listEl.innerHTML = '';
+                data.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'bg-gray-700 p-4 rounded-lg';
+                    el.innerHTML = `
+                        <p class="font-semibold text-white">${item.product_name} (x${item.quantity})</p>
+                        <p class="text-sm text-gray-400">Giá: ${formatCurrency(item.total_price)}</p>
+                        <p class="text-xs text-gray-500">Ngày mua: ${new Date(item.purchased_at).toLocaleString('vi-VN')}</p>
+                    `;
+                    listEl.appendChild(el);
+                });
+            }
+        };
+        
+        // --- Activity Feed Service ---
+        const activityFeed = {
+            async fetch() {
+                const { data, error } = await appState.supabase
+                    .from('activity_feed')
+                    .select('*')
+                    .order('timestamp', { ascending: false })
+                    .limit(10);
+                
+                if (error) {
+                    console.error("Error fetching activity feed:", error);
+                    return;
+                }
+                
+                this.render(data);
+            },
+            
+            render(activities) {
+                const feedEl = $('#activity-feed');
+                feedEl.innerHTML = '';
+                activities.forEach(item => {
+                    const el = this.createItemElement(item);
+                    feedEl.appendChild(el);
+                });
+            },
+            
+            listen() {
+                appState.supabase
+                    .channel('public:activity_feed')
+                    .on('postgres_changes', 
+                        { 
+                            event: 'INSERT', 
+                            schema: 'public', 
+                            table: 'activity_feed' 
+                        }, 
+                        (payload) => {
+                            const feedEl = $('#activity-feed');
+                            const newItemEl = this.createItemElement(payload.new);
+                            feedEl.prepend(newItemEl);
+                            // Giới hạn số lượng
+                            while (feedEl.children.length > 10) {
+                                feedEl.removeChild(feedEl.lastChild);
+                            }
+                        }
+                    )
+                    .subscribe();
+            },
+            
+            createItemElement(item) {
+                const el = document.createElement('div');
+                el.className = 'activity-feed-item';
+                const icon = item.type === 'deposit' 
+                    ? '<i class="fas fa-wallet text-green-400 text-xl w-8"></i>' 
+                    : '<i class="fas fa-shopping-cart text-blue-400 text-xl w-8"></i>';
+                
+                const username = item.username.substring(0, 3) + '***' + item.username.substring(item.username.length - 3);
+                
+                let text;
+                if (item.type === 'deposit') {
+                    text = `<b>${username}</b> vừa nạp <span class="text-green-400 font-bold">${formatCurrency(item.amount)}</span>`;
+                } else {
+                    text = `<b>${username}</b> vừa mua <span class="text-blue-400 font-bold">${item.product_name}</span>`;
+                }
+
+                el.innerHTML = `
+                    ${icon}
+                    <p class="ml-4 text-sm">${text}</p>
+                `;
+                return el;
+            }
+        };
+        
+        // --- Feedback Service ---
+        const feedback = {
+            init() {
+                $('#feedback-btn').addEventListener('click', () => show($('#feedback-modal')));
+                $('#feedback-cancel-btn').addEventListener('click', () => hide($('#feedback-modal')));
+                $('#feedback-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.submit();
+                });
+            },
+            
+            async submit() {
+                const btn = $('#feedback-submit-btn');
+                disable(btn);
+                
+                const content = $('#feedback-textarea').value;
+                const userId = appState.user ? appState.user.id : 'anonymous';
+                
+                try {
+                    const response = await fetch(FEEDBACK_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, content })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        showToast("Gửi góp ý thành công! Cảm ơn bạn.");
+                        hide($('#feedback-modal'));
+                        $('#feedback-textarea').value = '';
+                    } else {
+                        throw new Error(data.message);
+                    }
+                } catch (error) {
+                    showToast(error.message, true);
+                } finally {
+                    enable(btn);
+                }
+            }
+        };
+
+        // --- Event Listeners ---
+        function addPanelListeners() {
+            // Mở/Đóng panel
+            $('#menu-btn').addEventListener('click', () => {
+                panel.open();
+                // Tải lại dữ liệu user khi mở panel
+                if (appState.user) {
+                    auth.fetchUserData();
+                }
+            });
+            $('#close-panel-btn').addEventListener('click', () => panel.close());
+
+            // Tab Auth
+            $('#login-tab-btn').addEventListener('click', () => panel.toggleAuthTab('login'));
+            $('#register-tab-btn').addEventListener('click', () => panel.toggleAuthTab('register'));
+
+            // Form Auth
+            $('#login-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                auth.login($('#login-email').value, $('#login-password').value);
+            });
+            $('#register-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const pass = $('#register-password').value;
+                const confirmPass = $('#register-confirm-password').value;
+                if (pass !== confirmPass) {
+                    show($('#password-mismatch'));
+                    return;
+                }
+                hide($('#password-mismatch'));
+                auth.register($('#register-email').value, pass);
+            });
+            $('#forgot-password-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                const email = prompt("Vui lòng nhập email của bạn để reset mật khẩu:");
+                if (email) {
+                    auth.resetPassword(email);
+                }
+            });
+
+            // Menu chính
+            $('#logout-btn').addEventListener('click', () => auth.logout());
+            $('#deposit-menu-btn').addEventListener('click', () => {
+                panel.showView('#deposit-view');
+                deposit.fetchBanks();
+            });
+            $('#purchase-history-menu-btn').addEventListener('click', () => history.fetch());
+            $$('.back-to-menu-btn').forEach(btn => {
+                btn.addEventListener('click', () => panel.showView('#menu-view'));
+            });
+
+            // Form Nạp tiền
+            $('#deposit-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const bank = JSON.parse($('#deposit-bank').value);
+                const amount = parseInt($('#deposit-amount').value);
+                deposit.createDeposit(bank, amount);
+            });
+
+            // Modal Mua hàng
+            $('#modal-cancel-btn').addEventListener('click', () => hide($('#purchase-modal')));
+            $('#modal-qty-decrease').addEventListener('click', () => {
+                let qty = parseInt($('#modal-qty-input').value) - 1;
+                if (qty < 1) qty = 1;
+                $('#modal-qty-input').value = qty;
+                products.updatePurchaseModalQty();
+            });
+            $('#modal-qty-increase').addEventListener('click', () => {
+                let qty = parseInt($('#modal-qty-input').value) + 1;
+                $('#modal-qty-input').value = qty;
+                products.updatePurchaseModalQty();
+            });
+            $('#modal-qty-input').addEventListener('change', () => products.updatePurchaseModalQty());
+            $('#modal-confirm-btn').addEventListener('click', () => products.confirmPurchase());
         }
-        // ... (Toàn bộ logic còn lại của ứng dụng)
+
+        // --- App Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') {
+                document.body.innerHTML = `<div class="p-8 text-center text-red-400">LỖI CẤU HÌNH: Vui lòng dán SUPABASE_URL, SUPABASE_ANON_KEY, và APPS_SCRIPT_URL vào cuối file index.html</div>`;
+                return;
+            }
+            
+            auth.init();
+            products.fetch();
+            activityFeed.fetch();
+            activityFeed.listen();
+            feedback.init();
+            addPanelListeners();
+        });
+
     </script>
 </body>
 </html>
