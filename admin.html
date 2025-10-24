@@ -66,14 +66,30 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        /* Style cho màn hình loading ban đầu */
+        #initial-loading {
+            position: fixed;
+            inset: 0;
+            background-color: #1f2937;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body class="antialiased">
 
+    <!-- Initial Loading Screen -->
+    <div id="initial-loading">
+        <div class="spinner"></div>
+    </div>
+
     <!-- Admin Login View -->
-    <div id="admin-login-view" class="flex items-center justify-center min-h-screen p-4">
+    <div id="admin-login-view" class="flex items-center justify-center min-h-screen p-4 hidden">
         <div class="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-2xl">
             <h1 class="text-3xl font-bold text-white text-center mb-6">Đăng Nhập Quản Trị</h1>
+            <div id="login-error-message" class="bg-red-500 text-white p-3 rounded mb-4 hidden"></div>
             <form id="admin-login-form">
                 <div class="mb-4">
                     <label for="admin-email" class="block text-sm font-medium mb-2">Email</label>
@@ -265,9 +281,6 @@
         <span id="toast-message"></span>
     </div>
 
-    <!-- Firebase SDK -->
-    <!-- Đã import ở <head> -->
-
     <script>
         // BƯỚC 2.2: DÁN CÙNG MỘT CẤU HÌNH SUPABASE VÀO ĐÂY
         const SUPABASE_URL = 'https://okzaxfrazdowplynvpps.supabase.co';
@@ -275,21 +288,25 @@
 
         // --- TOÀN BỘ LOGIC CỦA TRANG QUẢN TRỊ ---
 
-        // Utility Functions
+        // Utility Functions (giữ nguyên)
         const $ = (selector) => document.querySelector(selector);
         const show = (el) => el.classList.remove('hidden');
         const hide = (el) => el.classList.add('hidden');
         const enable = (btn) => {
             btn.disabled = false;
-            hide(btn.querySelector('.btn-loader'));
-            show(btn.querySelector('.btn-text'));
+            // Kiểm tra xem btn có tồn tại loader và text không
+            const loader = btn.querySelector('.btn-loader');
+            const text = btn.querySelector('.btn-text');
+            if (loader) hide(loader);
+            if (text) show(text);
         };
         const disable = (btn) => {
             btn.disabled = true;
-            show(btn.querySelector('.btn-loader'));
-            hide(btn.querySelector('.btn-text'));
+            const loader = btn.querySelector('.btn-loader');
+            const text = btn.querySelector('.btn-text');
+            if (loader) show(loader);
+            if (text) hide(text);
         };
-
         const showToast = (message, isError = false) => {
             const toast = $('#toast');
             $('#toast-message').textContent = message;
@@ -303,7 +320,6 @@
                 toast.classList.add('opacity-0', '-translate-y-10');
             }, 3000);
         };
-        
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
         };
@@ -321,17 +337,22 @@
             async init() {
                 appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+                // TỐI ƯU: Kiểm tra session ngay lập tức khi tải trang
                 const { data: { session }, error } = await appState.supabase.auth.getSession();
+                hide($('#initial-loading')); // Ẩn màn hình loading
+
                 if (session) {
                     await this.checkAdmin(session.user);
                 } else {
                     this.showLogin();
                 }
 
+                // Listener vẫn giữ nguyên
                 appState.supabase.auth.onAuthStateChange(async (event, session) => {
                     if (event === 'SIGNED_OUT') {
                         this.showLogin();
-                    } else if (session) {
+                    } else if (session && event === 'SIGNED_IN') {
+                         // Chỉ check admin khi SIGNED_IN để tránh gọi lại khi session refresh
                         await this.checkAdmin(session.user);
                     }
                 });
@@ -344,35 +365,55 @@
                     .eq('id', user.id)
                     .single();
 
+                if (error) {
+                    console.error("Lỗi kiểm tra admin:", error);
+                    await appState.supabase.auth.signOut(); // Đăng xuất nếu lỗi
+                    this.showLogin("Lỗi kết nối hoặc không tìm thấy thông tin người dùng.");
+                    return;
+                }
+
                 if (data && data.is_admin) {
                     appState.user = user;
                     this.showAdminPanel();
                 } else {
-                    await appState.supabase.auth.signOut();
-                    showToast("Bạn không có quyền truy cập trang quản trị.", true);
-                    this.showLogin();
+                    await appState.supabase.auth.signOut(); // Đăng xuất nếu không phải admin
+                    this.showLogin("Bạn không có quyền truy cập trang quản trị.");
                 }
             },
 
             async login(email, password) {
                 const btn = $('#admin-login-submit');
+                const errorMsg = $('#login-error-message');
+                hide(errorMsg); // Ẩn lỗi cũ
                 disable(btn);
+
                 const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
                 enable(btn);
 
                 if (error) {
-                    showToast(error.message, true);
+                    // Hiển thị lỗi rõ ràng hơn
+                    errorMsg.textContent = error.message;
+                    show(errorMsg);
+                    // Không cần showToast nữa
                 }
-                // onAuthStateChange sẽ xử lý việc checkAdmin
+                // onAuthStateChange sẽ xử lý việc checkAdmin nếu đăng nhập thành công
             },
 
             async logout() {
                 await appState.supabase.auth.signOut();
+                // onAuthStateChange sẽ tự động chuyển về màn hình login
             },
 
-            showLogin() {
+            showLogin(errorMessage = null) {
                 hide($('#admin-main-view'));
                 show($('#admin-login-view'));
+                const errorMsg = $('#login-error-message');
+                if (errorMessage) {
+                    errorMsg.textContent = errorMessage;
+                    show(errorMsg);
+                } else {
+                    hide(errorMsg);
+                }
             },
 
             showAdminPanel() {
@@ -382,9 +423,9 @@
             }
         };
 
-        // --- Admin User Management ---
+        // --- Admin User Management --- (Giữ nguyên logic)
         const adminUsers = {
-            async fetch(searchTerm = '') {
+             async fetch(searchTerm = '') {
                 $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
                 
                 let query = appState.supabase.from('users').select('*').order('created_at', { ascending: false });
@@ -396,7 +437,7 @@
 
                 if (error) {
                     showToast(error.message, true);
-                    $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách.</td></tr>`;
+                    $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách: ${error.message}</td></tr>`;
                     return;
                 }
                 
@@ -479,7 +520,8 @@
                     $('#user-edit-balance').value = newBalance; // Cập nhật UI
                     appState.currentUserEdit.balance = newBalance; // Cập nhật state
                     $('#user-edit-amount').value = '';
-                    this.fetch();
+                    // Không cần fetch lại ngay, chỉ cập nhật UI là đủ
+                    // this.fetch(); 
                 }
             },
             
@@ -489,7 +531,7 @@
                 
                 // Cần gọi Supabase Function (hoặc dùng service_key) để xóa auth.users
                 // Tạm thời, chúng ta chỉ xóa record trong bảng 'users'
-                showToast("Tính năng này cần cài đặt bảo mật phía server. Tạm thời chỉ xóa record trong bảng 'users'...", true);
+                showToast("Tính năng xóa user từ Auth cần cài đặt bảo mật phía server. Đang thực hiện xóa record trong bảng 'users'...", true);
                 
                 const { error } = await appState.supabase
                     .from('users')
@@ -497,16 +539,16 @@
                     .eq('id', user.id);
                     
                 if (error) {
-                    showToast(error.message, true);
+                    showToast(`Lỗi xóa record users: ${error.message}`, true);
                 } else {
                     showToast("Đã xóa người dùng khỏi bảng 'users'.");
                     hide($('#user-edit-modal'));
-                    this.fetch();
+                    this.fetch(); // Tải lại danh sách sau khi xóa
                 }
             }
         };
 
-        // --- Admin Product Management ---
+        // --- Admin Product Management --- (Giữ nguyên logic)
         const adminProducts = {
             async fetch() {
                 $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
@@ -518,7 +560,7 @@
 
                 if (error) {
                     showToast(error.message, true);
-                    $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách.</td></tr>`;
+                    $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách sản phẩm.</td></tr>`;
                     return;
                 }
                 
@@ -575,6 +617,7 @@
                 } else {
                     // Add mode
                     $('#product-modal-title').textContent = "Thêm Sản Phẩm Mới";
+                     $('#product-edit-id').value = ''; // Đảm bảo ID trống khi thêm mới
                     hide($('#product-delete-btn'));
                 }
                 
@@ -607,6 +650,12 @@
                     allowed_users: $('#product-edit-allowed-users').value.split(',').map(email => email.trim()).filter(email => email)
                 };
 
+                // Validate price
+                if (isNaN(productData.price) || productData.price < 0) {
+                    showToast("Giá sản phẩm không hợp lệ.", true);
+                    return;
+                }
+
                 let query;
                 const productId = $('#product-edit-id').value;
 
@@ -615,13 +664,13 @@
                     query = appState.supabase.from('products').update(productData).eq('id', productId);
                 } else {
                     // Insert
-                    query = appState.supabase.from('products').insert(productData);
+                    query = appState.supabase.from('products').insert([productData]); // Insert cần một mảng
                 }
                 
                 const { error } = await query;
                 
                 if (error) {
-                    showToast(error.message, true);
+                    showToast(`Lỗi lưu sản phẩm: ${error.message}`, true);
                 } else {
                     showToast("Lưu sản phẩm thành công!");
                     hide($('#product-edit-modal'));
@@ -639,7 +688,7 @@
                     .eq('id', product.id);
 
                 if (error) {
-                    showToast(error.message, true);
+                    showToast(`Lỗi xóa sản phẩm: ${error.message}`, true);
                 } else {
                     showToast("Xóa sản phẩm thành công!");
                     hide($('#product-edit-modal'));
@@ -699,10 +748,11 @@
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-                document.body.innerHTML = `<div class="p-8 text-center text-red-400">LỖI CẤU HÌNH: Vui lòng dán SUPABASE_URL và SUPABASE_ANON_KEY vào cuối file admin.html</div>`;
+                hide($('#initial-loading'));
+                document.body.innerHTML = `<div class="p-8 text-center text-red-400"><b>LỖI CẤU HÌNH:</b><br>Vui lòng dán <b>SUPABASE_URL</b> và <b>SUPABASE_ANON_KEY</b> vào cuối file admin.html.</div>`;
                 return;
             }
-            adminAuth.init();
+            adminAuth.init(); // Init sẽ ẩn loading screen sau khi check session
             addAdminListeners();
         });
     </script>
