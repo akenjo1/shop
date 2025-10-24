@@ -4,28 +4,709 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trang Quản Trị</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>/* Các style giữ nguyên như cũ */</style>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1f2937; color: #d1d5db; }
+        .modal-bg { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .form-input, .form-select, .form-textarea { 
+            background-color: #374151; 
+            border: 1px solid #4b5563; 
+            color: white; 
+            border-radius: 0.5rem; 
+            padding: 0.75rem 1rem;
+            width: 100%;
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-block;
+        }
+        .btn-primary { background-color: #4f46e5; color: white; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-primary:disabled { background-color: #374151; cursor: not-allowed; }
+        .btn-secondary { background-color: #4b5563; color: white; }
+        .btn-secondary:hover { background-color: #6b7280; }
+        .btn-danger { background-color: #e11d48; color: white; }
+        .btn-danger:hover { background-color: #be123c; }
+        .nav-tab {
+            cursor: pointer;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 2px solid transparent;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+        .nav-tab.active {
+            color: #4f46e5;
+            border-bottom-color: #4f46e5;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="antialiased">
-    <!-- Toàn bộ cấu trúc HTML của trang quản trị giữ nguyên -->
-    <!-- ... -->
+
+    <!-- Admin Login View -->
+    <div id="admin-login-view" class="flex items-center justify-center min-h-screen p-4">
+        <div class="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-2xl">
+            <h1 class="text-3xl font-bold text-white text-center mb-6">Đăng Nhập Quản Trị</h1>
+            <form id="admin-login-form">
+                <div class="mb-4">
+                    <label for="admin-email" class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="admin-email" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label for="admin-password" class="block text-sm font-medium mb-2">Mật khẩu</label>
+                    <input type="password" id="admin-password" class="form-input" required>
+                </div>
+                <button type="submit" id="admin-login-submit" class="btn btn-primary w-full">
+                    <span class="btn-text">Đăng Nhập</span>
+                    <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
+                </button>
+            </form>
+        </div>
+    </div>
+    <!-- End Admin Login View -->
+
+    <!-- Admin Main View -->
+    <div id="admin-main-view" class="container mx-auto p-4 md:p-8 hidden">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-white">Trang Quản Trị</h1>
+            <button id="admin-logout-btn" class="btn btn-danger">Đăng Xuất</button>
+        </header>
+
+        <!-- Tabs -->
+        <div class="border-b border-gray-700 mb-6">
+            <nav class="flex space-x-4">
+                <button id="tab-users" class="nav-tab active">Quản Lý Người Dùng</button>
+                <button id="tab-products" class="nav-tab">Quản Lý Sản Phẩm</button>
+            </nav>
+        </div>
+
+        <!-- Users Tab Content -->
+        <div id="content-users">
+            <div class="mb-4">
+                <input type="text" id="user-search" class="form-input w-full md:w-1/2" placeholder="Tìm kiếm theo email hoặc username...">
+            </div>
+            <div class="overflow-x-auto bg-gray-800 rounded-lg shadow">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="p-4 font-semibold">Username</th>
+                            <th class="p-4 font-semibold">Email</th>
+                            <th class="p-4 font-semibold">Số Dư</th>
+                            <th class="p-4 font-semibold">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-list">
+                        <!-- User rows will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Products Tab Content -->
+        <div id="content-products" class="hidden">
+            <div class="text-right mb-4">
+                <button id="add-product-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Thêm Sản Phẩm Mới
+                </button>
+            </div>
+            <div class="overflow-x-auto bg-gray-800 rounded-lg shadow">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="p-4 font-semibold">Sản Phẩm</th>
+                            <th class="p-4 font-semibold">Giá</th>
+                            <th class="p-4 font-semibold">Giới Hạn Mua</th>
+                            <th class="p-4 font-semibold">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-list-admin">
+                        <!-- Product rows will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- End Admin Main View -->
+
+    <!-- Modals -->
+
+    <!-- User Edit Modal -->
+    <div id="user-edit-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-2xl font-bold text-white mb-6">Chỉnh Sửa Người Dùng</h2>
+            <p class="text-lg text-white mb-4" id="user-edit-email"></p>
+            <form id="user-edit-form">
+                <div class="mb-4">
+                    <label for="user-edit-username" class="block text-sm font-medium mb-2">Username</label>
+                    <input type="text" id="user-edit-username" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label for="user-edit-balance" class="block text-sm font-medium mb-2">Số Dư Hiện Tại</label>
+                    <input type="number" id="user-edit-balance" class="form-input" disabled>
+                </div>
+
+                <!-- Manual Balance Adjust -->
+                <div class="bg-gray-700 p-4 rounded-lg mb-6">
+                    <h3 class="font-semibold text-white mb-2">Điều Chỉnh Số Dư (Thủ Công)</h3>
+                    <div class="flex space-x-4">
+                        <div class="flex-1">
+                            <label for="user-edit-amount" class="block text-xs font-medium mb-1">Số tiền</label>
+                            <input type="number" id="user-edit-amount" class="form-input" placeholder="ví dụ: 50000 hoặc -10000">
+                        </div>
+                        <button type="button" id="user-adjust-balance-btn" class="btn btn-primary self-end">Cập Nhật</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center space-x-4">
+                    <div>
+                        <button type="button" id="user-delete-btn" class="btn btn-danger">Xóa Người Dùng</button>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button type="button" id="user-edit-cancel" class="btn btn-secondary">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Lưu Thay Đổi</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product Edit Modal -->
+    <div id="product-edit-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-screen">
+            <h2 id="product-modal-title" class="text-2xl font-bold text-white mb-6">Thêm/Sửa Sản Phẩm</h2>
+            <form id="product-edit-form">
+                <input type="hidden" id="product-edit-id">
+                <div class="mb-4">
+                    <label for="product-edit-name" class="block text-sm font-medium mb-2">Tên Sản Phẩm</label>
+                    <input type="text" id="product-edit-name" class="form-input" required>
+                </div>
+                <div class="mb-4">
+                    <label for="product-edit-description" class="block text-sm font-medium mb-2">Mô Tả</label>
+                    <textarea id="product-edit-description" class="form-textarea" rows="3"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="product-edit-price" class="block text-sm font-medium mb-2">Giá (VND)</label>
+                        <input type="number" id="product-edit-price" class="form-input" required min="0">
+                    </div>
+                    <div>
+                        <label for="product-edit-image-url" class="block text-sm font-medium mb-2">Link Ảnh</label>
+                        <input type="text" id="product-edit-image-url" class="form-input">
+                    </div>
+                </div>
+                
+                <!-- Purchase Limit -->
+                <div class="bg-gray-700 p-4 rounded-lg mb-6">
+                    <h3 class="font-semibold text-white mb-4">Giới Hạn Mua</h3>
+                    <div class="mb-4">
+                        <label for="product-edit-limit-type" class="block text-sm font-medium mb-2">Loại Giới Hạn</label>
+                        <select id="product-edit-limit-type" class="form-select">
+                            <option value="none">Không giới hạn</option>
+                            <option value="global">Giới hạn số lượng (Tất cả tài khoản)</option>
+                            <option value="restricted">Chỉ cho phép người dùng cụ thể</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Global Stock -->
+                    <div id="global-stock-field" class="mb-4 hidden">
+                        <label for="product-edit-global-stock" class="block text-sm font-medium mb-2">Tổng số lượng bán</label>
+                        <input type="number" id="product-edit-global-stock" class="form-input" min="0" value="0">
+                    </div>
+                    
+                    <!-- Restricted Users -->
+                    <div id="restricted-users-field" class="mb-4 hidden">
+                        <label for="product-edit-allowed-users" class="block text-sm font-medium mb-2">Danh sách Email được mua (cách nhau bằng dấu phẩy)</label>
+                        <textarea id="product-edit-allowed-users" class="form-textarea" rows="3" placeholder="user1@gmail.com, user2@gmail.com"></textarea>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <div>
+                        <button type="button" id="product-delete-btn" class="btn btn-danger">Xóa Sản Phẩm</button>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button type="button" id="product-edit-cancel" class="btn btn-secondary">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Lưu Sản Phẩm</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
     
+    <!-- Alert Toast -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 transition-all duration-300 -translate-y-10">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Firebase SDK -->
+    <!-- Đã import ở <head> -->
+
     <script>
         // BƯỚC 2.2: DÁN CÙNG MỘT CẤU HÌNH SUPABASE VÀO ĐÂY
         const SUPABASE_URL = 'https://okzaxfrazdowplynvpps.supabase.co';
-        const SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ
 
-        if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-            alert("VUI LÒNG CẤU HÌNH SUPABASE TRONG FILE admin.html TRƯỚC KHI SỬ DỤNG!");
+';
+
+        // --- TOÀN BỘ LOGIC CỦA TRANG QUẢN TRỊ ---
+
+        // Utility Functions
+        const $ = (selector) => document.querySelector(selector);
+        const show = (el) => el.classList.remove('hidden');
+        const hide = (el) => el.classList.add('hidden');
+        const enable = (btn) => {
+            btn.disabled = false;
+            hide(btn.querySelector('.btn-loader'));
+            show(btn.querySelector('.btn-text'));
+        };
+        const disable = (btn) => {
+            btn.disabled = true;
+            show(btn.querySelector('.btn-loader'));
+            hide(btn.querySelector('.btn-text'));
+        };
+
+        const showToast = (message, isError = false) => {
+            const toast = $('#toast');
+            $('#toast-message').textContent = message;
+            toast.classList.toggle('bg-green-500', !isError);
+            toast.classList.toggle('bg-red-500', isError);
+            toast.classList.remove('opacity-0', '-translate-y-10');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-10');
+            }, 3000);
+        };
+        
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        };
+
+        // --- App State ---
+        let appState = {
+            supabase: null,
+            user: null,
+            currentUserEdit: null,
+            currentProductEdit: null,
+        };
+
+        // --- Admin Auth Service ---
+        const adminAuth = {
+            async init() {
+                appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                const { data: { session }, error } = await appState.supabase.auth.getSession();
+                if (session) {
+                    await this.checkAdmin(session.user);
+                } else {
+                    this.showLogin();
+                }
+
+                appState.supabase.auth.onAuthStateChange(async (event, session) => {
+                    if (event === 'SIGNED_OUT') {
+                        this.showLogin();
+                    } else if (session) {
+                        await this.checkAdmin(session.user);
+                    }
+                });
+            },
+
+            async checkAdmin(user) {
+                const { data, error } = await appState.supabase
+                    .from('users')
+                    .select('is_admin')
+                    .eq('id', user.id)
+                    .single();
+
+                if (data && data.is_admin) {
+                    appState.user = user;
+                    this.showAdminPanel();
+                } else {
+                    await appState.supabase.auth.signOut();
+                    showToast("Bạn không có quyền truy cập trang quản trị.", true);
+                    this.showLogin();
+                }
+            },
+
+            async login(email, password) {
+                const btn = $('#admin-login-submit');
+                disable(btn);
+                const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
+                enable(btn);
+
+                if (error) {
+                    showToast(error.message, true);
+                }
+                // onAuthStateChange sẽ xử lý việc checkAdmin
+            },
+
+            async logout() {
+                await appState.supabase.auth.signOut();
+            },
+
+            showLogin() {
+                hide($('#admin-main-view'));
+                show($('#admin-login-view'));
+            },
+
+            showAdminPanel() {
+                hide($('#admin-login-view'));
+                show($('#admin-main-view'));
+                adminUsers.fetch(); // Tải danh sách người dùng khi vào
+            }
+        };
+
+        // --- Admin User Management ---
+        const adminUsers = {
+            async fetch(searchTerm = '') {
+                $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
+                
+                let query = appState.supabase.from('users').select('*').order('created_at', { ascending: false });
+                if (searchTerm) {
+                    query = query.or(`email.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`);
+                }
+                
+                const { data, error } = await query;
+
+                if (error) {
+                    showToast(error.message, true);
+                    $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách.</td></tr>`;
+                    return;
+                }
+                
+                this.render(data);
+            },
+            
+            render(users) {
+                const listEl = $('#user-list');
+                listEl.innerHTML = '';
+                if (users.length === 0) {
+                    listEl.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Không tìm thấy người dùng nào.</td></tr>`;
+                    return;
+                }
+                
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700 hover:bg-gray-900';
+                    row.innerHTML = `
+                        <td class="p-4">${user.username || 'N/A'}</td>
+                        <td class="p-4">${user.email}</td>
+                        <td class="p-4">${formatCurrency(user.balance)}</td>
+                        <td class="p-4">
+                            <button class="btn btn-secondary text-sm py-2 px-3 edit-user-btn" data-id="${user.id}">
+                                <i class="fas fa-edit"></i> Sửa
+                            </button>
+                        </td>
+                    `;
+                    row.querySelector('.edit-user-btn').addEventListener('click', () => this.openEditModal(user));
+                    listEl.appendChild(row);
+                });
+            },
+            
+            openEditModal(user) {
+                appState.currentUserEdit = user;
+                $('#user-edit-email').textContent = user.email;
+                $('#user-edit-username').value = user.username;
+                $('#user-edit-balance').value = user.balance;
+                $('#user-edit-amount').value = '';
+                show($('#user-edit-modal'));
+            },
+            
+            async saveUser() {
+                const user = appState.currentUserEdit;
+                const newUsername = $('#user-edit-username').value;
+                
+                const { error } = await appState.supabase
+                    .from('users')
+                    .update({ username: newUsername })
+                    .eq('id', user.id);
+                    
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Cập nhật username thành công!");
+                    hide($('#user-edit-modal'));
+                    this.fetch();
+                }
+            },
+            
+            async adjustBalance() {
+                const user = appState.currentUserEdit;
+                const amount = parseFloat($('#user-edit-amount').value);
+                
+                if (isNaN(amount) || amount === 0) {
+                    showToast("Vui lòng nhập số tiền hợp lệ.", true);
+                    return;
+                }
+                
+                const newBalance = user.balance + amount;
+
+                const { error } = await appState.supabase
+                    .from('users')
+                    .update({ balance: newBalance })
+                    .eq('id', user.id);
+                
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast(`Cập nhật số dư thành công! Số dư mới: ${formatCurrency(newBalance)}`);
+                    $('#user-edit-balance').value = newBalance; // Cập nhật UI
+                    appState.currentUserEdit.balance = newBalance; // Cập nhật state
+                    $('#user-edit-amount').value = '';
+                    this.fetch();
+                }
+            },
+            
+            async deleteUser() {
+                const user = appState.currentUserEdit;
+                if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn người dùng ${user.email}?\nHÀNH ĐỘNG NÀY KHÔNG THỂ HOÀN TÁC.`)) return;
+                
+                // Cần gọi Supabase Function (hoặc dùng service_key) để xóa auth.users
+                // Tạm thời, chúng ta chỉ xóa record trong bảng 'users'
+                showToast("Tính năng này cần cài đặt bảo mật phía server. Tạm thời chỉ xóa record trong bảng 'users'...", true);
+                
+                const { error } = await appState.supabase
+                    .from('users')
+                    .delete()
+                    .eq('id', user.id);
+                    
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Đã xóa người dùng khỏi bảng 'users'.");
+                    hide($('#user-edit-modal'));
+                    this.fetch();
+                }
+            }
+        };
+
+        // --- Admin Product Management ---
+        const adminProducts = {
+            async fetch() {
+                $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
+                
+                const { data, error } = await appState.supabase
+                    .from('products')
+                    .select('*')
+                    .order('id', { ascending: true });
+
+                if (error) {
+                    showToast(error.message, true);
+                    $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách.</td></tr>`;
+                    return;
+                }
+                
+                this.render(data);
+            },
+
+            render(products) {
+                const listEl = $('#product-list-admin');
+                listEl.innerHTML = '';
+                if (products.length === 0) {
+                    listEl.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Chưa có sản phẩm nào.</td></tr>`;
+                    return;
+                }
+                
+                products.forEach(product => {
+                    let limitText = "Không giới hạn";
+                    if(product.purchase_limit_type === 'global') limitText = `Toàn bộ (${product.global_stock} sp)`;
+                    if(product.purchase_limit_type === 'restricted') limitText = `Hạn chế`;
+                    
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700 hover:bg-gray-900';
+                    row.innerHTML = `
+                        <td class="p-4 font-semibold">${product.name}</td>
+                        <td class="p-4">${formatCurrency(product.price)}</td>
+                        <td class="p-4">${limitText}</td>
+                        <td class="p-4">
+                            <button class="btn btn-secondary text-sm py-2 px-3 edit-product-btn" data-id="${product.id}">
+                                <i class="fas fa-edit"></i> Sửa
+                            </button>
+                        </td>
+                    `;
+                    row.querySelector('.edit-product-btn').addEventListener('click', () => this.openEditModal(product));
+                    listEl.appendChild(row);
+                });
+            },
+            
+            openEditModal(product = null) {
+                appState.currentProductEdit = product;
+                const form = $('#product-edit-form');
+                form.reset();
+                
+                if (product) {
+                    // Edit mode
+                    $('#product-modal-title').textContent = "Chỉnh Sửa Sản Phẩm";
+                    $('#product-edit-id').value = product.id;
+                    $('#product-edit-name').value = product.name;
+                    $('#product-edit-description').value = product.description;
+                    $('#product-edit-price').value = product.price;
+                    $('#product-edit-image-url').value = product.image_url;
+                    $('#product-edit-limit-type').value = product.purchase_limit_type;
+                    $('#product-edit-global-stock').value = product.global_stock || 0;
+                    $('#product-edit-allowed-users').value = (product.allowed_users || []).join(', ');
+                    show($('#product-delete-btn'));
+                } else {
+                    // Add mode
+                    $('#product-modal-title').textContent = "Thêm Sản Phẩm Mới";
+                    hide($('#product-delete-btn'));
+                }
+                
+                this.toggleLimitFields(); // Cập nhật hiển thị các trường giới hạn
+                show($('#product-edit-modal'));
+            },
+            
+            toggleLimitFields() {
+                const type = $('#product-edit-limit-type').value;
+                if(type === 'global') {
+                    show($('#global-stock-field'));
+                    hide($('#restricted-users-field'));
+                } else if (type === 'restricted') {
+                    hide($('#global-stock-field'));
+                    show($('#restricted-users-field'));
+                } else {
+                    hide($('#global-stock-field'));
+                    hide($('#restricted-users-field'));
+                }
+            },
+            
+            async saveProduct() {
+                const productData = {
+                    name: $('#product-edit-name').value,
+                    description: $('#product-edit-description').value,
+                    price: parseFloat($('#product-edit-price').value),
+                    image_url: $('#product-edit-image-url').value,
+                    purchase_limit_type: $('#product-edit-limit-type').value,
+                    global_stock: parseInt($('#product-edit-global-stock').value) || 0,
+                    allowed_users: $('#product-edit-allowed-users').value.split(',').map(email => email.trim()).filter(email => email)
+                };
+
+                let query;
+                const productId = $('#product-edit-id').value;
+
+                if (productId) {
+                    // Update
+                    query = appState.supabase.from('products').update(productData).eq('id', productId);
+                } else {
+                    // Insert
+                    query = appState.supabase.from('products').insert(productData);
+                }
+                
+                const { error } = await query;
+                
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Lưu sản phẩm thành công!");
+                    hide($('#product-edit-modal'));
+                    this.fetch();
+                }
+            },
+            
+            async deleteProduct() {
+                const product = appState.currentProductEdit;
+                if (!confirm(`Bạn có chắc chắn muốn XÓA sản phẩm ${product.name}?`)) return;
+
+                const { error } = await appState.supabase
+                    .from('products')
+                    .delete()
+                    .eq('id', product.id);
+
+                if (error) {
+                    showToast(error.message, true);
+                } else {
+                    showToast("Xóa sản phẩm thành công!");
+                    hide($('#product-edit-modal'));
+                    this.fetch();
+                }
+            }
+        };
+
+        // --- Event Listeners ---
+        function addAdminListeners() {
+            // Login/Logout
+            $('#admin-login-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                adminAuth.login($('#admin-email').value, $('#admin-password').value);
+            });
+            $('#admin-logout-btn').addEventListener('click', () => adminAuth.logout());
+            
+            // Tabs
+            $('#tab-users').addEventListener('click', () => {
+                $('#tab-users').classList.add('active');
+                $('#tab-products').classList.remove('active');
+                show($('#content-users'));
+                hide($('#content-products'));
+                adminUsers.fetch();
+            });
+            $('#tab-products').addEventListener('click', () => {
+                $('#tab-products').classList.add('active');
+                $('#tab-users').classList.remove('active');
+                show($('#content-products'));
+                hide($('#content-users'));
+                adminProducts.fetch();
+            });
+            
+            // User Search
+            $('#user-search').addEventListener('input', (e) => adminUsers.fetch(e.target.value));
+            
+            // User Modal
+            $('#user-edit-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                adminUsers.saveUser();
+            });
+            $('#user-edit-cancel').addEventListener('click', () => hide($('#user-edit-modal')));
+            $('#user-adjust-balance-btn').addEventListener('click', () => adminUsers.adjustBalance());
+            $('#user-delete-btn').addEventListener('click', () => adminUsers.deleteUser());
+            
+            // Product Modal
+            $('#add-product-btn').addEventListener('click', () => adminProducts.openEditModal(null));
+            $('#product-edit-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                adminProducts.saveProduct();
+            });
+            $('#product-edit-cancel').addEventListener('click', () => hide($('#product-edit-modal')));
+            $('#product-delete-btn').addEventListener('click', () => adminProducts.deleteProduct());
+            $('#product-edit-limit-type').addEventListener('change', () => adminProducts.toggleLimitFields());
         }
 
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        // --- Logic của trang quản trị sẽ được viết lại để dùng Supabase ---
-        // ... (Toàn bộ logic của trang quản trị)
+        // --- App Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+                document.body.innerHTML = `<div class="p-8 text-center text-red-400">LỖI CẤU HÌNH: Vui lòng dán SUPABASE_URL và SUPABASE_ANON_KEY vào cuối file admin.html</div>`;
+                return;
+            }
+            adminAuth.init();
+            addAdminListeners();
+        });
     </script>
 </body>
 </html>
