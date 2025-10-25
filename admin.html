@@ -72,9 +72,16 @@
             inset: 0;
             background-color: #1f2937;
             display: flex;
+            flex-direction: column; /* Thêm để hiển thị lỗi bên dưới spinner */
             align-items: center;
             justify-content: center;
             z-index: 9999;
+            padding: 1rem; /* Thêm padding */
+        }
+         #init-error-message {
+            margin-top: 1rem; /* Khoảng cách với spinner */
+            text-align: center;
+            word-break: break-word; /* Ngăn lỗi tràn màn hình */
         }
     </style>
 </head>
@@ -83,6 +90,8 @@
     <!-- Initial Loading Screen -->
     <div id="initial-loading">
         <div class="spinner"></div>
+        <!-- THÊM: Khu vực hiển thị lỗi khởi tạo -->
+        <div id="init-error-message" class="text-red-400 mt-4 hidden"></div>
     </div>
 
     <!-- Admin Login View -->
@@ -341,23 +350,20 @@
         // --- Admin Auth Service ---
         const adminAuth = {
             async init() {
-                // Kiểm tra cấu hình trước
-                if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-                    hide($('#initial-loading'));
-                    document.body.innerHTML = `<div class="p-8 text-center text-red-400"><b>LỖI CẤU HÌNH:</b><br>Vui lòng dán <b>SUPABASE_URL</b> và <b>SUPABASE_ANON_KEY</b> vào cuối file admin.html.</div>`;
-                    return;
-                }
-
+                // THÊM: Bắt lỗi tổng thể khi khởi tạo
                 try {
+                    // Kiểm tra cấu hình trước
+                    if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+                        throw new Error("Chưa cấu hình Supabase URL/Key trong admin.html.");
+                    }
+
                     appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     
                     const { data: { session }, error: sessionError } = await appState.supabase.auth.getSession();
                     
                     if (sessionError) {
-                        console.error("Lỗi lấy session:", sessionError);
-                        this.showLogin("Lỗi kết nối. Vui lòng thử lại.");
-                        hide($('#initial-loading'));
-                        return;
+                         // Hiển thị lỗi lấy session
+                        throw new Error(`Lỗi lấy session: ${sessionError.message}`);
                     }
 
                     if (session) {
@@ -366,28 +372,41 @@
                         this.showLogin();
                     }
 
-                } catch (initError) {
-                    console.error("Lỗi khởi tạo Supabase:", initError);
-                    this.showLogin("Lỗi khởi tạo. Kiểm tra lại URL/Key.");
-                } finally {
-                    hide($('#initial-loading')); // Luôn ẩn loading sau khi kiểm tra xong
-                }
+                    // Listener vẫn giữ nguyên
+                    appState.supabase.auth.onAuthStateChange(async (event, session) => {
+                         console.log("Auth State Change:", event, session); // Thêm log để debug
+                        if (event === 'SIGNED_OUT') {
+                            this.showLogin();
+                        } else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) { 
+                            // Check admin cả khi SIGNED_IN và INITIAL_SESSION
+                            await this.checkAdmin(session.user);
+                        }
+                    });
 
-                // Listener vẫn giữ nguyên
-                appState.supabase.auth.onAuthStateChange(async (event, session) => {
-                    if (event === 'SIGNED_OUT') {
-                        this.showLogin();
-                    } else if (session && event === 'SIGNED_IN') {
-                        await this.checkAdmin(session.user);
+                } catch (initError) {
+                    console.error("Lỗi khởi tạo:", initError);
+                    // THÊM: Hiển thị lỗi ngay trên màn hình loading
+                    const errorDiv = $('#init-error-message');
+                    errorDiv.textContent = `Lỗi Khởi Tạo: ${initError.message}. Vui lòng kiểm tra lại cấu hình Supabase URL/Key và thử tải lại trang.`;
+                    show(errorDiv);
+                     // Ẩn spinner đi khi có lỗi
+                    hide($('#initial-loading').querySelector('.spinner'));
+                } finally {
+                    // Chỉ ẩn loading nếu không có lỗi nghiêm trọng ban đầu
+                    if (!$('#init-error-message').textContent) {
+                         hide($('#initial-loading'));
                     }
-                });
+                }
             },
 
             async checkAdmin(user) {
                 if (!user) {
+                    console.log("CheckAdmin: No user provided.");
                     this.showLogin();
                     return;
                 }
+                
+                console.log("CheckAdmin: Checking user", user.email);
                 
                 try {
                     const { data, error } = await appState.supabase
@@ -398,15 +417,19 @@
 
                     if (error) {
                         console.error("Lỗi kiểm tra admin:", error);
-                        // Đừng đăng xuất vội, có thể chỉ là lỗi mạng tạm thời
+                        // Thay vì đăng xuất, chỉ hiển thị lỗi đăng nhập
                         this.showLogin(`Lỗi khi kiểm tra quyền admin: ${error.message}. Thử lại.`);
-                        return;
+                        return; // Dừng lại ở đây
                     }
 
-                    if (data && data.is_admin) {
+                    console.log("CheckAdmin: Got user data", data);
+
+                    if (data && data.is_admin === true) { // Phải kiểm tra === true
+                        console.log("CheckAdmin: User is admin.");
                         appState.user = user;
                         this.showAdminPanel();
                     } else {
+                        console.log("CheckAdmin: User is NOT admin or data missing.");
                         await appState.supabase.auth.signOut(); // Đăng xuất nếu không phải admin
                         this.showLogin("Bạn không có quyền truy cập trang quản trị.");
                     }
@@ -423,14 +446,18 @@
                 disable(btn);
 
                 try {
-                    const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
+                    console.log("Login attempt for:", email);
+                    const { data, error } = await appState.supabase.auth.signInWithPassword({ email, password });
                     
                     if (error) {
-                        // Hiển thị lỗi rõ ràng hơn
+                        console.error("Login error:", error);
                         errorMsg.textContent = `Lỗi đăng nhập: ${error.message}`;
                         show(errorMsg);
+                    } else {
+                         console.log("Login successful, waiting for auth state change...");
+                        // onAuthStateChange sẽ xử lý việc checkAdmin nếu đăng nhập thành công
+                        // Không cần làm gì thêm ở đây
                     }
-                    // onAuthStateChange sẽ xử lý việc checkAdmin nếu đăng nhập thành công
                     
                 } catch(loginError) {
                      console.error("Lỗi bất ngờ khi login:", loginError);
@@ -452,6 +479,7 @@
             },
 
             showLogin(errorMessage = null) {
+                console.log("Showing Login View");
                 hide($('#admin-main-view'));
                 show($('#admin-login-view'));
                 const errorMsg = $('#login-error-message');
@@ -464,16 +492,18 @@
             },
 
             showAdminPanel() {
+                console.log("Showing Admin Panel");
                 hide($('#admin-login-view'));
                 show($('#admin-main-view'));
                 adminUsers.fetch(); // Tải danh sách người dùng khi vào
             }
         };
 
-        // --- Admin User Management --- (Giữ nguyên logic)
+        // --- Admin User Management --- (Giữ nguyên logic, thêm console log)
         const adminUsers = {
              async fetch(searchTerm = '') {
-                 if (!appState.supabase) return; // Đảm bảo supabase đã khởi tạo
+                 if (!appState.supabase) return; 
+                 console.log("Fetching users, search:", searchTerm);
                 $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
                 
                 try {
@@ -485,9 +515,9 @@
                     const { data, error } = await query;
 
                     if (error) {
-                        throw error; // Ném lỗi để catch xử lý
+                        throw error; 
                     }
-                    
+                    console.log("Fetched users data:", data);
                     this.render(data);
 
                 } catch (fetchError) {
@@ -533,6 +563,7 @@
             },
             
             async saveUser() {
+                 if (!appState.supabase) return;
                 const user = appState.currentUserEdit;
                 const newUsername = $('#user-edit-username').value;
                 
@@ -551,6 +582,7 @@
             },
             
             async adjustBalance() {
+                 if (!appState.supabase) return;
                 const user = appState.currentUserEdit;
                 const amount = parseFloat($('#user-edit-amount').value);
                 
@@ -579,6 +611,7 @@
             },
             
             async deleteUser() {
+                 if (!appState.supabase) return;
                 const user = appState.currentUserEdit;
                 if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn người dùng ${user.email}?\nHÀNH ĐỘNG NÀY KHÔNG THỂ HOÀN TÁC.`)) return;
                 
@@ -604,7 +637,7 @@
         // --- Admin Product Management --- (Giữ nguyên logic)
         const adminProducts = {
             async fetch() {
-                 if (!appState.supabase) return; // Đảm bảo supabase đã khởi tạo
+                 if (!appState.supabase) return;
                 $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
                 
                 try {
@@ -698,6 +731,7 @@
             },
             
             async saveProduct() {
+                 if (!appState.supabase) return;
                 const productData = {
                     name: $('#product-edit-name').value,
                     description: $('#product-edit-description').value,
@@ -743,6 +777,7 @@
             },
             
             async deleteProduct() {
+                 if (!appState.supabase) return;
                 const product = appState.currentProductEdit;
                 if (!confirm(`Bạn có chắc chắn muốn XÓA sản phẩm ${product.name}?`)) return;
 
@@ -817,7 +852,8 @@
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            adminAuth.init(); // Init sẽ ẩn loading screen sau khi check session
+            console.log("Admin page loaded. Initializing auth..."); // Thêm log
+            adminAuth.init(); 
             addAdminListeners();
         });
     </script>
