@@ -282,25 +282,29 @@
     </div>
 
     <script>
-        // BƯỚC 2.2: DÁN CÙNG MỘT CẤU HÌNH SUPABASE VÀO ĐÂY
-        const SUPABASE_URL ='https://okzaxfrazdowplynvpps.supabase.co';
+        // =============================================================
+        // === BƯỚC 2.2: DÁN CÙNG MỘT CẤU HÌNH SUPABASE VÀO ĐÂY ===
+        // =============================================================
+        const SUPABASE_URL ='https://okzaxfrazdowplynvpps.supabase.co'; 
         const SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ';
+        // =============================================================
 
         // --- TOÀN BỘ LOGIC CỦA TRANG QUẢN TRỊ ---
 
         // Utility Functions (giữ nguyên)
         const $ = (selector) => document.querySelector(selector);
-        const show = (el) => el.classList.remove('hidden');
-        const hide = (el) => el.classList.add('hidden');
+        const show = (el) => { if(el) el.classList.remove('hidden'); };
+        const hide = (el) => { if(el) el.classList.add('hidden'); };
         const enable = (btn) => {
+            if (!btn) return;
             btn.disabled = false;
-            // Kiểm tra xem btn có tồn tại loader và text không
             const loader = btn.querySelector('.btn-loader');
             const text = btn.querySelector('.btn-text');
             if (loader) hide(loader);
             if (text) show(text);
         };
         const disable = (btn) => {
+            if (!btn) return;
             btn.disabled = true;
             const loader = btn.querySelector('.btn-loader');
             const text = btn.querySelector('.btn-text');
@@ -309,6 +313,7 @@
         };
         const showToast = (message, isError = false) => {
             const toast = $('#toast');
+            if (!toast) return;
             $('#toast-message').textContent = message;
             toast.classList.toggle('bg-green-500', !isError);
             toast.classList.toggle('bg-red-500', isError);
@@ -321,6 +326,7 @@
             }, 3000);
         };
         const formatCurrency = (amount) => {
+            if (typeof amount !== 'number') return 'N/A';
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
         };
 
@@ -335,16 +341,36 @@
         // --- Admin Auth Service ---
         const adminAuth = {
             async init() {
-                appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                // Kiểm tra cấu hình trước
+                if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+                    hide($('#initial-loading'));
+                    document.body.innerHTML = `<div class="p-8 text-center text-red-400"><b>LỖI CẤU HÌNH:</b><br>Vui lòng dán <b>SUPABASE_URL</b> và <b>SUPABASE_ANON_KEY</b> vào cuối file admin.html.</div>`;
+                    return;
+                }
 
-                // TỐI ƯU: Kiểm tra session ngay lập tức khi tải trang
-                const { data: { session }, error } = await appState.supabase.auth.getSession();
-                hide($('#initial-loading')); // Ẩn màn hình loading
+                try {
+                    appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    
+                    const { data: { session }, error: sessionError } = await appState.supabase.auth.getSession();
+                    
+                    if (sessionError) {
+                        console.error("Lỗi lấy session:", sessionError);
+                        this.showLogin("Lỗi kết nối. Vui lòng thử lại.");
+                        hide($('#initial-loading'));
+                        return;
+                    }
 
-                if (session) {
-                    await this.checkAdmin(session.user);
-                } else {
-                    this.showLogin();
+                    if (session) {
+                        await this.checkAdmin(session.user);
+                    } else {
+                        this.showLogin();
+                    }
+
+                } catch (initError) {
+                    console.error("Lỗi khởi tạo Supabase:", initError);
+                    this.showLogin("Lỗi khởi tạo. Kiểm tra lại URL/Key.");
+                } finally {
+                    hide($('#initial-loading')); // Luôn ẩn loading sau khi kiểm tra xong
                 }
 
                 // Listener vẫn giữ nguyên
@@ -352,32 +378,41 @@
                     if (event === 'SIGNED_OUT') {
                         this.showLogin();
                     } else if (session && event === 'SIGNED_IN') {
-                         // Chỉ check admin khi SIGNED_IN để tránh gọi lại khi session refresh
                         await this.checkAdmin(session.user);
                     }
                 });
             },
 
             async checkAdmin(user) {
-                const { data, error } = await appState.supabase
-                    .from('users')
-                    .select('is_admin')
-                    .eq('id', user.id)
-                    .single();
-
-                if (error) {
-                    console.error("Lỗi kiểm tra admin:", error);
-                    await appState.supabase.auth.signOut(); // Đăng xuất nếu lỗi
-                    this.showLogin("Lỗi kết nối hoặc không tìm thấy thông tin người dùng.");
+                if (!user) {
+                    this.showLogin();
                     return;
                 }
+                
+                try {
+                    const { data, error } = await appState.supabase
+                        .from('users')
+                        .select('is_admin')
+                        .eq('id', user.id)
+                        .single();
 
-                if (data && data.is_admin) {
-                    appState.user = user;
-                    this.showAdminPanel();
-                } else {
-                    await appState.supabase.auth.signOut(); // Đăng xuất nếu không phải admin
-                    this.showLogin("Bạn không có quyền truy cập trang quản trị.");
+                    if (error) {
+                        console.error("Lỗi kiểm tra admin:", error);
+                        // Đừng đăng xuất vội, có thể chỉ là lỗi mạng tạm thời
+                        this.showLogin(`Lỗi khi kiểm tra quyền admin: ${error.message}. Thử lại.`);
+                        return;
+                    }
+
+                    if (data && data.is_admin) {
+                        appState.user = user;
+                        this.showAdminPanel();
+                    } else {
+                        await appState.supabase.auth.signOut(); // Đăng xuất nếu không phải admin
+                        this.showLogin("Bạn không có quyền truy cập trang quản trị.");
+                    }
+                } catch (checkError) {
+                     console.error("Lỗi bất ngờ khi checkAdmin:", checkError);
+                     this.showLogin("Lỗi hệ thống khi kiểm tra quyền. Vui lòng thử lại.");
                 }
             },
 
@@ -387,21 +422,33 @@
                 hide(errorMsg); // Ẩn lỗi cũ
                 disable(btn);
 
-                const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
-                enable(btn);
-
-                if (error) {
-                    // Hiển thị lỗi rõ ràng hơn
-                    errorMsg.textContent = error.message;
-                    show(errorMsg);
-                    // Không cần showToast nữa
+                try {
+                    const { error } = await appState.supabase.auth.signInWithPassword({ email, password });
+                    
+                    if (error) {
+                        // Hiển thị lỗi rõ ràng hơn
+                        errorMsg.textContent = `Lỗi đăng nhập: ${error.message}`;
+                        show(errorMsg);
+                    }
+                    // onAuthStateChange sẽ xử lý việc checkAdmin nếu đăng nhập thành công
+                    
+                } catch(loginError) {
+                     console.error("Lỗi bất ngờ khi login:", loginError);
+                     errorMsg.textContent = "Lỗi hệ thống khi đăng nhập. Vui lòng thử lại.";
+                     show(errorMsg);
+                } finally {
+                    enable(btn); // Luôn enable nút sau khi xử lý
                 }
-                // onAuthStateChange sẽ xử lý việc checkAdmin nếu đăng nhập thành công
             },
 
             async logout() {
-                await appState.supabase.auth.signOut();
-                // onAuthStateChange sẽ tự động chuyển về màn hình login
+                try {
+                    await appState.supabase.auth.signOut();
+                    // onAuthStateChange sẽ tự động chuyển về màn hình login
+                } catch (logoutError) {
+                    console.error("Lỗi đăng xuất:", logoutError);
+                    showToast("Lỗi khi đăng xuất.", true);
+                }
             },
 
             showLogin(errorMessage = null) {
@@ -426,28 +473,34 @@
         // --- Admin User Management --- (Giữ nguyên logic)
         const adminUsers = {
              async fetch(searchTerm = '') {
+                 if (!appState.supabase) return; // Đảm bảo supabase đã khởi tạo
                 $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
                 
-                let query = appState.supabase.from('users').select('*').order('created_at', { ascending: false });
-                if (searchTerm) {
-                    query = query.or(`email.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`);
-                }
-                
-                const { data, error } = await query;
+                try {
+                    let query = appState.supabase.from('users').select('*').order('created_at', { ascending: false });
+                    if (searchTerm) {
+                        query = query.or(`email.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`);
+                    }
+                    
+                    const { data, error } = await query;
 
-                if (error) {
-                    showToast(error.message, true);
-                    $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách: ${error.message}</td></tr>`;
-                    return;
+                    if (error) {
+                        throw error; // Ném lỗi để catch xử lý
+                    }
+                    
+                    this.render(data);
+
+                } catch (fetchError) {
+                    console.error("Lỗi tải users:", fetchError);
+                    showToast(`Lỗi tải danh sách người dùng: ${fetchError.message}`, true);
+                    $('#user-list').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách.</td></tr>`;
                 }
-                
-                this.render(data);
             },
             
             render(users) {
                 const listEl = $('#user-list');
                 listEl.innerHTML = '';
-                if (users.length === 0) {
+                if (!users || users.length === 0) {
                     listEl.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Không tìm thấy người dùng nào.</td></tr>`;
                     return;
                 }
@@ -506,7 +559,7 @@
                     return;
                 }
                 
-                const newBalance = user.balance + amount;
+                const newBalance = (parseFloat(user.balance) || 0) + amount; // Đảm bảo balance là số
 
                 const { error } = await appState.supabase
                     .from('users')
@@ -551,26 +604,31 @@
         // --- Admin Product Management --- (Giữ nguyên logic)
         const adminProducts = {
             async fetch() {
+                 if (!appState.supabase) return; // Đảm bảo supabase đã khởi tạo
                 $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="spinner mx-auto"></div></td></tr>`;
                 
-                const { data, error } = await appState.supabase
-                    .from('products')
-                    .select('*')
-                    .order('id', { ascending: true });
+                try {
+                    const { data, error } = await appState.supabase
+                        .from('products')
+                        .select('*')
+                        .order('id', { ascending: true });
 
-                if (error) {
-                    showToast(error.message, true);
+                    if (error) {
+                        throw error;
+                    }
+                    
+                    this.render(data);
+                } catch(fetchError) {
+                    console.error("Lỗi tải products:", fetchError);
+                    showToast(`Lỗi tải danh sách sản phẩm: ${fetchError.message}`, true);
                     $('#product-list-admin').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Lỗi khi tải danh sách sản phẩm.</td></tr>`;
-                    return;
                 }
-                
-                this.render(data);
             },
 
             render(products) {
                 const listEl = $('#product-list-admin');
                 listEl.innerHTML = '';
-                if (products.length === 0) {
+                 if (!products || products.length === 0) {
                     listEl.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Chưa có sản phẩm nào.</td></tr>`;
                     return;
                 }
@@ -659,22 +717,28 @@
                 let query;
                 const productId = $('#product-edit-id').value;
 
-                if (productId) {
-                    // Update
-                    query = appState.supabase.from('products').update(productData).eq('id', productId);
-                } else {
-                    // Insert
-                    query = appState.supabase.from('products').insert([productData]); // Insert cần một mảng
-                }
-                
-                const { error } = await query;
-                
-                if (error) {
-                    showToast(`Lỗi lưu sản phẩm: ${error.message}`, true);
-                } else {
+                try {
+                    if (productId) {
+                        // Update
+                        query = appState.supabase.from('products').update(productData).eq('id', productId);
+                    } else {
+                        // Insert
+                        query = appState.supabase.from('products').insert([productData]); // Insert cần một mảng
+                    }
+                    
+                    const { error } = await query;
+                    
+                    if (error) {
+                        throw error;
+                    } 
+                    
                     showToast("Lưu sản phẩm thành công!");
                     hide($('#product-edit-modal'));
                     this.fetch();
+
+                } catch(saveError) {
+                    console.error("Lỗi lưu product:", saveError);
+                    showToast(`Lỗi lưu sản phẩm: ${saveError.message}`, true);
                 }
             },
             
@@ -682,17 +746,23 @@
                 const product = appState.currentProductEdit;
                 if (!confirm(`Bạn có chắc chắn muốn XÓA sản phẩm ${product.name}?`)) return;
 
-                const { error } = await appState.supabase
-                    .from('products')
-                    .delete()
-                    .eq('id', product.id);
+                try {
+                    const { error } = await appState.supabase
+                        .from('products')
+                        .delete()
+                        .eq('id', product.id);
 
-                if (error) {
-                    showToast(`Lỗi xóa sản phẩm: ${error.message}`, true);
-                } else {
+                    if (error) {
+                       throw error;
+                    } 
+                    
                     showToast("Xóa sản phẩm thành công!");
                     hide($('#product-edit-modal'));
                     this.fetch();
+
+                } catch(deleteError) {
+                     console.error("Lỗi xóa product:", deleteError);
+                    showToast(`Lỗi xóa sản phẩm: ${deleteError.message}`, true);
                 }
             }
         };
@@ -747,11 +817,6 @@
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-                hide($('#initial-loading'));
-                document.body.innerHTML = `<div class="p-8 text-center text-red-400"><b>LỖI CẤU HÌNH:</b><br>Vui lòng dán <b>SUPABASE_URL</b> và <b>SUPABASE_ANON_KEY</b> vào cuối file admin.html.</div>`;
-                return;
-            }
             adminAuth.init(); // Init sẽ ẩn loading screen sau khi check session
             addAdminListeners();
         });
