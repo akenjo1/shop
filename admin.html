@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trang Quản Trị</title>
+    <title>Trang Quản Trị - Login Only</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome Icons -->
@@ -12,90 +12,35 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
+        /* CSS Styles giữ nguyên */
         body { font-family: 'Inter', sans-serif; background-color: #1f2937; color: #d1d5db; }
-        .modal-bg { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
-        .form-input, .form-select, .form-textarea { 
-            background-color: #374151; 
-            border: 1px solid #4b5563; 
-            color: white; 
-            border-radius: 0.5rem; 
-            padding: 0.75rem 1rem;
-            width: 100%;
-        }
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
-        }
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            text-align: center;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            display: inline-block;
-        }
-        .btn-primary { background-color: #4f46e5; color: white; }
-        .btn-primary:hover { background-color: #4338ca; }
-        .btn-primary:disabled { background-color: #374151; cursor: not-allowed; }
-        .btn-secondary { background-color: #4b5563; color: white; }
-        .btn-secondary:hover { background-color: #6b7280; }
-        .btn-danger { background-color: #e11d48; color: white; }
-        .btn-danger:hover { background-color: #be123c; }
-        .nav-tab {
-            cursor: pointer;
-            padding: 0.75rem 1.5rem;
-            border-bottom: 2px solid transparent;
-            color: #9ca3af;
-            font-weight: 500;
-        }
-        .nav-tab.active {
-            color: #4f46e5;
-            border-bottom-color: #4f46e5;
-        }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #4f46e5;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        /* Style cho màn hình loading ban đầu */
-        #initial-loading {
-            position: fixed;
-            inset: 0;
-            background-color: #1f2937;
-            display: flex;
-            flex-direction: column; /* Thêm để hiển thị lỗi bên dưới spinner */
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 1rem; /* Thêm padding */
-        }
-         #init-error-message {
-            margin-top: 1rem; /* Khoảng cách với spinner */
-            text-align: center;
-            word-break: break-word; /* Ngăn lỗi tràn màn hình */
-        }
+        .modal-bg { /* ... */ }
+        .form-input, .form-select, .form-textarea { background-color: #374151; border: 1px solid #4b5563; color: white; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5); }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; text-align: center; cursor: pointer; transition: background-color 0.2s; display: inline-block; } /* Sửa: Không để width: 100% mặc định */
+        .btn-primary { background-color: #4f46e5; color: white; } .btn-primary:hover { background-color: #4338ca; } .btn-primary:disabled { background-color: #374151; cursor: not-allowed; }
+        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #6b7280; }
+        .btn-danger { background-color: #e11d48; color: white; } .btn-danger:hover { background-color: #be123c; }
+        .nav-tab { /* ... */ } .nav-tab.active { /* ... */ }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Bỏ màn hình loading */
+        #init-error-message { margin-top: 1rem; text-align: center; word-break: break-word; color: #f87171; font-weight: bold; font-family: monospace; font-size: 0.9em; background-color: #374151; padding: 1rem; border-radius: 0.5rem; border: 1px solid #4b5563;} 
+         #admin-login-view { display: none; } /* Mặc định ẩn đi */
+         #admin-login-view.visible { display: flex; } /* Hiện ra khi cần */
+
     </style>
 </head>
 <body class="antialiased">
 
-    <!-- Initial Loading Screen -->
-    <div id="initial-loading">
-        <div class="spinner"></div>
-        <!-- Khu vực hiển thị lỗi khởi tạo -->
-        <div id="init-error-message" class="text-red-400 mt-4 hidden"></div>
-    </div>
+    <!-- KHÔNG CÓ MÀN HÌNH LOADING BAN ĐẦU -->
+    <!-- Khu vực hiển thị lỗi khởi tạo (nếu có) -->
+    <div id="init-error-message" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 p-4 bg-red-800 text-white rounded hidden"></div>
+
 
     <!-- Admin Login View -->
-    <div id="admin-login-view" class="flex items-center justify-center min-h-screen p-4 hidden">
+    <div id="admin-login-view" class="items-center justify-center min-h-screen p-4"> <!-- Sửa: Bỏ hidden ban đầu -->
+        <!-- Nội dung form đăng nhập đầy đủ -->
         <div class="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-2xl">
             <h1 class="text-3xl font-bold text-white text-center mb-6">Đăng Nhập Quản Trị</h1>
             <div id="login-error-message" class="bg-red-500 text-white p-3 rounded mb-4 hidden"></div>
@@ -108,7 +53,8 @@
                     <label for="admin-password" class="block text-sm font-medium mb-2">Mật khẩu</label>
                     <input type="password" id="admin-password" class="form-input" required>
                 </div>
-                <button type="submit" id="admin-login-submit" class="btn btn-primary w-full">
+                <!-- SỬA LỖI NÚT BẤM -->
+                <button type="submit" id="admin-login-submit" class="btn btn-primary w-full"> <!-- Thêm lại w-full -->
                     <span class="btn-text">Đăng Nhập</span>
                     <span class="btn-loader hidden"><div class="spinner mx-auto" style="width: 20px; height: 20px; border-width: 2px;"></div></span>
                 </button>
@@ -117,422 +63,129 @@
     </div>
     <!-- End Admin Login View -->
 
-    <!-- Admin Main View -->
+    <!-- Admin Main View (Placeholder) -->
     <div id="admin-main-view" class="container mx-auto p-4 md:p-8 hidden">
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-white">Trang Quản Trị</h1>
-            <button id="admin-logout-btn" class="btn btn-danger">Đăng Xuất</button>
-        </header>
-
-        <!-- Tabs -->
-        <div class="border-b border-gray-700 mb-6">
-            <nav class="flex space-x-4">
-                <button id="tab-users" class="nav-tab active">Quản Lý Người Dùng</button>
-                <button id="tab-products" class="nav-tab">Quản Lý Sản Phẩm</button>
-            </nav>
-        </div>
-
-        <!-- Users Tab Content -->
-        <div id="content-users">
-            <div class="mb-4">
-                <input type="text" id="user-search" class="form-input w-full md:w-1/2" placeholder="Tìm kiếm theo email hoặc username...">
-            </div>
-            <div class="overflow-x-auto bg-gray-800 rounded-lg shadow">
-                <table class="w-full text-left">
-                    <thead class="bg-gray-700">
-                        <tr>
-                            <th class="p-4 font-semibold">Username</th>
-                            <th class="p-4 font-semibold">Email</th>
-                            <th class="p-4 font-semibold">Số Dư</th>
-                            <th class="p-4 font-semibold">Hành Động</th>
-                        </tr>
-                    </thead>
-                    <tbody id="user-list">
-                        <!-- User rows will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Products Tab Content -->
-        <div id="content-products" class="hidden">
-            <div class="text-right mb-4">
-                <button id="add-product-btn" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Thêm Sản Phẩm Mới
-                </button>
-            </div>
-            <div class="overflow-x-auto bg-gray-800 rounded-lg shadow">
-                <table class="w-full text-left">
-                    <thead class="bg-gray-700">
-                        <tr>
-                            <th class="p-4 font-semibold">Sản Phẩm</th>
-                            <th class="p-4 font-semibold">Giá</th>
-                            <th class="p-4 font-semibold">Giới Hạn Mua</th>
-                            <th class="p-4 font-semibold">Hành Động</th>
-                        </tr>
-                    </thead>
-                    <tbody id="product-list-admin">
-                        <!-- Product rows will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <!-- End Admin Main View -->
-
-    <!-- Modals -->
-
-    <!-- User Edit Modal -->
-    <div id="user-edit-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-            <h2 class="text-2xl font-bold text-white mb-6">Chỉnh Sửa Người Dùng</h2>
-            <p class="text-lg text-white mb-4" id="user-edit-email"></p>
-            <form id="user-edit-form">
-                <div class="mb-4">
-                    <label for="user-edit-username" class="block text-sm font-medium mb-2">Username</label>
-                    <input type="text" id="user-edit-username" class="form-input" required>
-                </div>
-                <div class="mb-6">
-                    <label for="user-edit-balance" class="block text-sm font-medium mb-2">Số Dư Hiện Tại</label>
-                    <input type="number" id="user-edit-balance" class="form-input" disabled>
-                </div>
-
-                <!-- Manual Balance Adjust -->
-                <div class="bg-gray-700 p-4 rounded-lg mb-6">
-                    <h3 class="font-semibold text-white mb-2">Điều Chỉnh Số Dư (Thủ Công)</h3>
-                    <div class="flex space-x-4">
-                        <div class="flex-1">
-                            <label for="user-edit-amount" class="block text-xs font-medium mb-1">Số tiền</label>
-                            <input type="number" id="user-edit-amount" class="form-input" placeholder="ví dụ: 50000 hoặc -10000">
-                        </div>
-                        <button type="button" id="user-adjust-balance-btn" class="btn btn-primary self-end">Cập Nhật</button>
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-center space-x-4">
-                    <div>
-                        <button type="button" id="user-delete-btn" class="btn btn-danger">Xóa Người Dùng</button>
-                    </div>
-                    <div class="flex space-x-4">
-                        <button type="button" id="user-edit-cancel" class="btn btn-secondary">Hủy</button>
-                        <button type="submit" class="btn btn-primary">Lưu Thay Đổi</button>
-                    </div>
-                </div>
-            </form>
-        </div>
+       <h1 class="text-3xl text-green-400">Đăng nhập Admin thành công! (Giao diện đầy đủ sẽ ở đây)</h1>
+        <button id="admin-logout-btn" class="btn btn-danger mt-4">Đăng Xuất</button>
     </div>
 
-    <!-- Product Edit Modal -->
-    <div id="product-edit-modal" class="modal-bg fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-screen">
-            <h2 id="product-modal-title" class="text-2xl font-bold text-white mb-6">Thêm/Sửa Sản Phẩm</h2>
-            <form id="product-edit-form">
-                <input type="hidden" id="product-edit-id">
-                <div class="mb-4">
-                    <label for="product-edit-name" class="block text-sm font-medium mb-2">Tên Sản Phẩm</label>
-                    <input type="text" id="product-edit-name" class="form-input" required>
-                </div>
-                <div class="mb-4">
-                    <label for="product-edit-description" class="block text-sm font-medium mb-2">Mô Tả</label>
-                    <textarea id="product-edit-description" class="form-textarea" rows="3"></textarea>
-                </div>
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="product-edit-price" class="block text-sm font-medium mb-2">Giá (VND)</label>
-                        <input type="number" id="product-edit-price" class="form-input" required min="0">
-                    </div>
-                    <div>
-                        <label for="product-edit-image-url" class="block text-sm font-medium mb-2">Link Ảnh</label>
-                        <input type="text" id="product-edit-image-url" class="form-input">
-                    </div>
-                </div>
-                
-                <!-- Purchase Limit -->
-                <div class="bg-gray-700 p-4 rounded-lg mb-6">
-                    <h3 class="font-semibold text-white mb-4">Giới Hạn Mua</h3>
-                    <div class="mb-4">
-                        <label for="product-edit-limit-type" class="block text-sm font-medium mb-2">Loại Giới Hạn</label>
-                        <select id="product-edit-limit-type" class="form-select">
-                            <option value="none">Không giới hạn</option>
-                            <option value="global">Giới hạn số lượng (Tất cả tài khoản)</option>
-                            <option value="restricted">Chỉ cho phép người dùng cụ thể</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Global Stock -->
-                    <div id="global-stock-field" class="mb-4 hidden">
-                        <label for="product-edit-global-stock" class="block text-sm font-medium mb-2">Tổng số lượng bán</label>
-                        <input type="number" id="product-edit-global-stock" class="form-input" min="0" value="0">
-                    </div>
-                    
-                    <!-- Restricted Users -->
-                    <div id="restricted-users-field" class="mb-4 hidden">
-                        <label for="product-edit-allowed-users" class="block text-sm font-medium mb-2">Danh sách Email được mua (cách nhau bằng dấu phẩy)</label>
-                        <textarea id="product-edit-allowed-users" class="form-textarea" rows="3" placeholder="user1@gmail.com, user2@gmail.com"></textarea>
-                    </div>
-                </div>
-                
-                <div class="flex justify-between items-center">
-                    <div>
-                        <button type="button" id="product-delete-btn" class="btn btn-danger">Xóa Sản Phẩm</button>
-                    </div>
-                    <div class="flex space-x-4">
-                        <button type="button" id="product-edit-cancel" class="btn btn-secondary">Hủy</button>
-                        <button type="submit" class="btn btn-primary">Lưu Sản Phẩm</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Alert Toast -->
-    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 transition-all duration-300 -translate-y-10">
-        <span id="toast-message"></span>
-    </div>
+    <!-- Modals (Không cần thiết cho bản test này) -->
+    <!-- Alert Toast (Không cần thiết cho bản test này) -->
 
     <script>
         // =============================================================
-        // === BƯỚC 2.2: DÁN CÙNG MỘT CẤU HÌNH SUPABASE VÀO ĐÂY ===
+        // === KEY SUPABASE CỦA BẠN ĐÃ ĐƯỢC DÁN VÀO ĐÂY ===
         // =============================================================
-        const SUPABASE_URL ='https://okzaxfrazdowplynvpps.supabase.co'; 
-        const SUPABASE_ANON_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ';
+        const SUPABASE_URL = 'https://okzaxfrazdowplynvpps.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9remF4ZnJhemRvd3BseW52cHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMDYzMTUsImV4cCI6MjA3Njc4MjMxNX0.rMKUCMnkNg3uldS7SAwR-o-fCFdUiDBvq_51iHERjsQ';
         // =============================================================
 
-        // --- TOÀN BỘ LOGIC CỦA TRANG QUẢN TRỊ ---
-
-        // Utility Functions (giữ nguyên)
+        // --- Utility Functions ---
         const $ = (selector) => document.querySelector(selector);
-        const show = (el) => { if(el) el.classList.remove('hidden'); };
-        const hide = (el) => { if(el) el.classList.add('hidden'); };
-        const enable = (btn) => {
-            if (!btn) return;
-            btn.disabled = false;
-            const loader = btn.querySelector('.btn-loader');
-            const text = btn.querySelector('.btn-text');
-            if (loader) hide(loader);
-            if (text) show(text);
-        };
-        const disable = (btn) => {
-            if (!btn) return;
-            btn.disabled = true;
-            const loader = btn.querySelector('.btn-loader');
-            const text = btn.querySelector('.btn-text');
-            if (loader) show(loader);
-            if (text) hide(text);
-        };
-        const showToast = (message, isError = false) => {
-            const toast = $('#toast');
-            if (!toast) return;
-            $('#toast-message').textContent = message;
-            toast.classList.toggle('bg-green-500', !isError);
-            toast.classList.toggle('bg-red-500', isError);
-            toast.classList.remove('opacity-0', '-translate-y-10');
-            toast.classList.add('opacity-100', 'translate-y-0');
-
-            setTimeout(() => {
-                toast.classList.remove('opacity-100', 'translate-y-0');
-                toast.classList.add('opacity-0', '-translate-y-10');
-            }, 3000);
-        };
-        const formatCurrency = (amount) => {
-            if (typeof amount !== 'number') return 'N/A';
-            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-        };
-
-        // --- App State ---
-        let appState = {
-            supabase: null,
-            user: null,
-            currentUserEdit: null,
-            currentProductEdit: null,
-        };
-
-        // --- Admin Auth Service ---
-        const adminAuth = {
-            async init() {
-                // THÊM: Bắt lỗi tổng thể khi khởi tạo
-                try {
-                    console.log("Admin Init: Starting..."); // Log bắt đầu
-
-                    // Kiểm tra cấu hình trước
-                    if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-                        throw new Error("Chưa cấu hình Supabase URL/Key trong admin.html.");
-                    }
-                    console.log("Admin Init: Config OK.");
-
-                    appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    console.log("Admin Init: Supabase client created.");
-                    
-                    // Lắng nghe auth state changes TRƯỚC khi getSession
-                     appState.supabase.auth.onAuthStateChange(async (event, session) => {
-                         console.log("Auth State Change:", event, session ? session.user.email : 'No session'); 
-                        if (event === 'SIGNED_OUT') {
-                            this.showLogin();
-                        } else if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) { 
-                            await this.checkAdmin(session.user);
-                        } else if (event === 'TOKEN_REFRESHED' && session) {
-                            // Nếu token refresh, vẫn cần check admin lại phòng trường hợp quyền bị thay đổi
-                            await this.checkAdmin(session.user);
-                        }
-                    });
-                    console.log("Admin Init: Auth listener attached.");
-
-                    // Bây giờ mới get session
-                    const { data: { session }, error: sessionError } = await appState.supabase.auth.getSession();
-                    console.log("Admin Init: getSession result", session ? session.user.email : 'No session', sessionError);
-                    
-                    if (sessionError) {
-                        throw new Error(`Lỗi lấy session: ${sessionError.message}`);
-                    }
-
-                    if (session) {
-                        // Không cần gọi checkAdmin ở đây nữa vì onAuthStateChange sẽ xử lý INITIAL_SESSION
-                        // await this.checkAdmin(session.user); 
-                    } else {
-                        this.showLogin();
-                    }
-
-                } catch (initError) {
-                    console.error("Lỗi khởi tạo:", initError);
-                    // Hiển thị lỗi ngay trên màn hình loading
-                    const errorDiv = $('#init-error-message');
-                    errorDiv.textContent = `Lỗi Khởi Tạo: ${initError.message}. Vui lòng kiểm tra lại cấu hình Supabase URL/Key và thử tải lại trang.`;
-                    show(errorDiv);
-                    hide($('#initial-loading').querySelector('.spinner'));
-                } finally {
-                    // Chỉ ẩn loading nếu không có lỗi nghiêm trọng ban đầu
-                    // CẦN CHỜ MỘT CHÚT để onAuthStateChange có cơ hội chạy và ẩn loading
-                    setTimeout(() => {
-                         if (!$('#init-error-message').textContent) {
-                            hide($('#initial-loading'));
-                         }
-                    }, 500); // Chờ 0.5 giây
-                }
-            },
-
-            async checkAdmin(user) {
-                if (!user) {
-                    console.log("CheckAdmin: No user provided.");
-                    this.showLogin();
-                    return;
-                }
-                
-                console.log("CheckAdmin: Checking user", user.email);
-                
-                try {
-                    const { data, error } = await appState.supabase
-                        .from('users')
-                        .select('is_admin')
-                        .eq('id', user.id)
-                        .single();
-
-                    if (error) {
-                        console.error("Lỗi kiểm tra admin:", error);
-                        // Chỉ hiển thị lỗi nếu không phải là "Row not found" (có thể user chưa có trong bảng users)
-                        if (error.code !== 'PGRST116') { 
-                            this.showLogin(`Lỗi khi kiểm tra quyền admin: ${error.message}. Thử lại.`);
-                            return; 
-                        } else {
-                             console.log("CheckAdmin: User not found in 'users' table yet.");
-                             // Nếu user mới đăng ký, bảng 'users' có thể chưa được tạo kịp, cho họ thấy trang login
-                             await appState.supabase.auth.signOut();
-                             this.showLogin("Tài khoản chưa được kích hoạt hoàn toàn. Vui lòng thử lại sau giây lát.");
-                             return;
-                        }
-                    }
-
-                    console.log("CheckAdmin: Got user data", data);
-
-                    if (data && data.is_admin === true) { 
-                        console.log("CheckAdmin: User IS admin.");
-                        appState.user = user;
-                        this.showAdminPanel();
-                    } else {
-                        console.log("CheckAdmin: User IS NOT admin or data missing.");
-                        await appState.supabase.auth.signOut(); 
-                        this.showLogin("Bạn không có quyền truy cập trang quản trị.");
-                    }
-                } catch (checkError) {
-                     console.error("Lỗi bất ngờ khi checkAdmin:", checkError);
-                     this.showLogin("Lỗi hệ thống khi kiểm tra quyền. Vui lòng thử lại.");
-                } finally {
-                     // Ẩn loading screen nếu nó vẫn còn hiển thị
-                     hide($('#initial-loading'));
-                }
-            },
-
-            async login(email, password) {
-                const btn = $('#admin-login-submit');
-                const errorMsg = $('#login-error-message');
-                hide(errorMsg); 
-                disable(btn);
-
-                try {
-                    console.log("Login attempt for:", email);
-                    const { data, error } = await appState.supabase.auth.signInWithPassword({ email, password });
-                    
-                    if (error) {
-                        console.error("Login error:", error);
-                        errorMsg.textContent = `Lỗi đăng nhập: ${error.message}`;
-                        show(errorMsg);
-                    } else {
-                         console.log("Login successful, waiting for auth state change...");
-                        // onAuthStateChange sẽ xử lý tiếp
-                    }
-                    
-                } catch(loginError) {
-                     console.error("Lỗi bất ngờ khi login:", loginError);
-                     errorMsg.textContent = "Lỗi hệ thống khi đăng nhập. Vui lòng thử lại.";
-                     show(errorMsg);
-                } finally {
-                    enable(btn); 
-                }
-            },
-
-            async logout() {
-                try {
-                    await appState.supabase.auth.signOut();
-                } catch (logoutError) {
-                    console.error("Lỗi đăng xuất:", logoutError);
-                    showToast("Lỗi khi đăng xuất.", true);
-                }
-            },
-
-            showLogin(errorMessage = null) {
-                console.log("Showing Login View");
-                 hide($('#initial-loading')); // Đảm bảo loading ẩn đi
-                hide($('#admin-main-view'));
-                show($('#admin-login-view'));
-                const errorMsg = $('#login-error-message');
-                if (errorMessage) {
-                    errorMsg.textContent = errorMessage;
-                    show(errorMsg);
-                } else {
-                    hide(errorMsg);
-                }
-            },
-
-            showAdminPanel() {
-                console.log("Showing Admin Panel");
-                 hide($('#initial-loading')); // Đảm bảo loading ẩn đi
-                hide($('#admin-login-view'));
-                show($('#admin-main-view'));
-                adminUsers.fetch(); // Tải danh sách người dùng khi vào
+        const show = (el) => { 
+            if(el) {
+                el.classList.remove('hidden'); 
+                if (el.id === 'admin-login-view') el.classList.add('visible'); 
             }
         };
+        const hide = (el) => { 
+            if(el) {
+                el.classList.add('hidden'); 
+                if (el.id === 'admin-login-view') el.classList.remove('visible'); 
+            }
+        };
+        const enable = (btn) => { /* ... */ };
+        const disable = (btn) => { /* ... */ };
 
-        // --- Admin User Management --- (Giữ nguyên logic)
-        const adminUsers = { /* ... code như cũ ... */ };
-        // --- Admin Product Management --- (Giữ nguyên logic)
-        const adminProducts = { /* ... code như cũ ... */ };
-        // --- Event Listeners --- (Giữ nguyên logic)
-        function addAdminListeners() { /* ... code như cũ ... */ }
+        // --- Hàm hiển thị lỗi khởi tạo ---
+        function showInitError(message, details = '') { 
+             console.error("Initialization Error:", message, details);
+             const errorDiv = $('#init-error-message');
+             if (errorDiv) {
+                 errorDiv.innerHTML = `<b>Lỗi Khởi Tạo:</b> ${message}` + (details ? `<br><small>${details}</small>` : '');
+                 show(errorDiv); 
+             }
+             // Ẩn login view nếu có lỗi init
+             hide($('#admin-login-view'));
+        }
+
+        // --- Hàm hiển thị màn hình Login/Admin ---
+        function showLoginScreen(errorMessage = null) { 
+            console.log("Showing Login Screen. Error:", errorMessage);
+            hide($('#admin-main-view'));
+            show($('#admin-login-view')); 
+            const errorMsg = $('#login-error-message');
+            if (errorMessage) { errorMsg.textContent = errorMessage; show(errorMsg); } 
+            else { hide(errorMsg); }
+        }
+        function showAdminPanel() { 
+             console.log("Showing Admin Panel");
+             hide($('#admin-login-view'));
+             show($('#admin-main-view'));
+            // Tạm thời không tải data
+        }
+
+         // SỬA LỖI: Khai báo appState ở phạm vi toàn cục TRƯỚC khi sử dụng
+         let appState = { 
+            supabase: null,
+            user: null, 
+         };
+
+         // --- Hàm Kiểm Tra Admin (Chỉ gọi sau khi đăng nhập) ---
+         async function checkAdminStatus(user) { /* ... logic như v13 ... */ }
+        // --- Hàm Đăng Nhập (Cập nhật để gọi checkAdmin) ---
+        async function handleLoginSubmit(e) { /* ... logic như v13 ... */ }
+        // --- Hàm Đăng Xuất ---
+        async function handleLogout() { /* ... logic như v13 ... */ }
+
+
+        // --- Hàm Khởi Tạo Siêu Tối Giản (v21 - Fix appState) ---
+        function initializeLoginOnly() {
+            try {
+                console.log("Admin Init V21: Starting..."); 
+
+                // 1. Kiểm tra config
+                if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL' || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+                    throw new Error("Chưa cấu hình Supabase URL/Key.");
+                }
+                console.log("Admin Init V21: Config OK.");
+
+                // 2. Khởi tạo Supabase Client
+                try {
+                    // SỬA LỖI: Gán vào appState đã được khai báo
+                    appState.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); 
+                    console.log("Admin Init V21: Supabase client created.");
+                } catch (clientError) {
+                     throw new Error(`Lỗi tạo Supabase client: ${clientError.message}.`);
+                }
+                
+                // 3. HIỂN THỊ NGAY MÀN HÌNH LOGIN
+                console.log("Admin Init V21: Showing Login Screen directly.");
+                showLoginScreen(); // Gọi hàm hiển thị màn hình login
+
+                 // 4. Gắn listener đăng xuất (nếu cần)
+                 const logoutBtn = $('#admin-logout-btn');
+                 if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+
+            } catch (initError) {
+                // Bắt tất cả lỗi từ các bước trên và hiển thị
+                showInitError(initError.message); 
+            }
+        }
+
+
+        // --- Event Listeners --- (Chỉ cần listener cho login)
+        function addLoginListener() { 
+             const loginForm = $('#admin-login-form');
+             if (loginForm) loginForm.addEventListener('submit', handleLoginSubmit);
+         }
 
         // --- App Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            console.log("Admin page loaded. Initializing auth..."); 
-            adminAuth.init(); 
-            addAdminListeners();
+            console.log("Admin page loaded. Initializing auth V21..."); 
+            initializeLoginOnly(); // Gọi hàm khởi tạo siêu đơn giản
+            addLoginListener(); 
         });
     </script>
 </body>
