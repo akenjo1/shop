@@ -32,15 +32,15 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// 🔴 CẤU HÌNH FIREBASE (DÁN MÃ CỦA BẠN VÀO ĐÂY)
+// 1. CẤU HÌNH FIREBASE (ĐÃ DÁN MÃ CỦA BẠN)
 // ==========================================
 const firebaseConfig = {
-  apiKey: "DÁN_API_KEY_CỦA_BẠN_VÀO_ĐÂY",
-  authDomain: "DÁN_AUTH_DOMAIN_VÀO_ĐÂY",
-  projectId: "DÁN_PROJECT_ID_VÀO_ĐÂY",
-  storageBucket: "DÁN_STORAGE_BUCKET_VÀO_ĐÂY",
-  messagingSenderId: "DÁN_SENDER_ID_VÀO_ĐÂY",
-  appId: "DÁN_APP_ID_VÀO_ĐÂY"
+  apiKey: "AIzaSyAXwx2TFoBItZ9tH6zIbECHSK4z_pOaVkI",
+  authDomain: "shop-9d1ae.firebaseapp.com",
+  projectId: "shop-9d1ae",
+  storageBucket: "shop-9d1ae.firebasestorage.app",
+  messagingSenderId: "307813723666",
+  appId: "1:307813723666:web:1231c496c082871c1b72cb"
 };
 
 // --- KHỞI TẠO HỆ THỐNG ---
@@ -48,9 +48,6 @@ let app, auth, db, googleProvider;
 let firebaseError = null;
 
 try {
-  if (firebaseConfig.apiKey.includes("DÁN_API_KEY") || firebaseConfig.apiKey === "") {
-    throw new Error("CHƯA NHẬP API KEY! Vui lòng mở file src/App.jsx để điền.");
-  }
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
@@ -60,14 +57,25 @@ try {
   firebaseError = error.message;
 }
 
-const appId = 'cybershop-v2'; // ID định danh cho Database
-const SUPER_ADMIN_EMAIL = "admin@shop.com"; // Email Admin
+// ID định danh cho Database (Lấy theo Project ID của bạn cho đồng bộ)
+const appId = 'shop-9d1ae'; 
+
+// 🔴 EMAIL ADMIN (Bạn phải tạo tài khoản này trong Firebase Authentication)
+const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
 // --- DỮ LIỆU & HÀM HỖ TRỢ ---
 const AUTO_IMAGES = {
   netflix: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=600&q=80',
   spotify: 'https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=600&q=80',
   youtube: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&q=80',
+  steam: 'https://images.unsplash.com/photo-1612287230217-969e090e8f77?w=600&q=80',
+  windows: 'https://images.unsplash.com/photo-1626218174358-77b797576550?w=600&q=80',
+  office: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=80',
+  adobe: 'https://images.unsplash.com/photo-1626785774573-4b799312c95d?w=600&q=80',
+  vpn: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&q=80',
+  game: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&q=80',
+  canva: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=600&q=80',
+  gpt: 'https://images.unsplash.com/photo-1675557009875-436f5223b57f?w=600&q=80',
   default: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&q=80'
 };
 
@@ -128,7 +136,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
         balance: userData.balance - prod.price
       });
-      await deleteDoc(prodRef); // Mua xong xóa luôn (Cơ chế 1 sản phẩm 1 người mua)
+      await deleteDoc(prodRef);
 
       alert(`🎉 MUA THÀNH CÔNG!\n\n📦 THÔNG TIN TÀI KHOẢN:\n${fullData.data}\n\n(Hãy lưu lại ngay)`);
       showToast("Giao dịch thành công!", "success");
@@ -151,12 +159,12 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   return (
     <div className="min-h-screen bg-[#09090b] text-white font-sans pb-20">
       
-      {/* NAVBAR: SỬA LỖI LOGO VỀ TRANG CHỦ */}
+      {/* NAVBAR */}
       <nav className="sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur border-b border-white/10">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          {/* BẤM VÀO LOGO LÀ VỀ HOME */}
-          <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
-            <Gamepad2 className="text-violet-500" /> 
+          {/* BẤM VÀO LOGO VỀ HOME */}
+          <div className="flex items-center gap-2 cursor-pointer select-none group" onClick={() => setActiveTab('home')}>
+            <Gamepad2 className="text-violet-500 group-hover:scale-110 transition" /> 
             <span className="font-bold text-xl">CYBER<span className="text-violet-500">SHOP</span></span>
           </div>
 
