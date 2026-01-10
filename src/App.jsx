@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -21,21 +21,21 @@ import {
   deleteDoc, 
   serverTimestamp, 
   setDoc, 
-  getDoc 
+  getDoc,
+  orderBy
 } from 'firebase/firestore';
 import { 
   ShoppingCart, ShieldCheck, User, LogOut, 
   Plus, Trash2, CheckCircle, XCircle, Search, 
   LayoutDashboard, Wallet, Gamepad2, Zap, Star, 
   Lock, Terminal, Image as ImageIcon, CreditCard,
-  AlertTriangle, ArrowRight, Tag, Database, Home
+  AlertTriangle, ArrowRight, Tag, Database, Menu, 
+  History, Clock, X, QrCode, Copy
 } from 'lucide-react';
 
 // ==========================================
-// 1. CẤU HÌNH FIREBASE (MÃ CỦA BẠN)
+// 1. CẤU HÌNH FIREBASE
 // ==========================================
-// Để ẩn key khi lên GitHub/Vercel, bạn hãy dùng biến môi trường (Environment Variables)
-// Nhưng để chạy ngay bây giờ, tôi để cứng ở đây.
 const firebaseConfig = {
   apiKey: "AIzaSyAXwx2TFoBItZ9tH6zIbECHSK4z_pOaVkI",
   authDomain: "shop-9d1ae.firebaseapp.com",
@@ -45,58 +45,86 @@ const firebaseConfig = {
   appId: "1:307813723666:web:1231c496c082871c1b72cb"
 };
 
-// Khởi tạo
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+let app, auth, db, googleProvider;
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  googleProvider = new GoogleAuthProvider();
+} catch (error) {
+  console.error("Lỗi:", error);
+}
 
-const appId = 'shop-9d1ae'; // ID định danh database
-
-// 🔴 EMAIL ADMIN (Thay bằng email bạn dùng để đăng nhập trang Admin)
+const appId = 'shop-9d1ae'; 
 const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
-// --- HÀM HỖ TRỢ ---
+// --- TIỆN ÍCH ---
 const AUTO_IMAGES = {
   netflix: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=600&q=80',
   spotify: 'https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=600&q=80',
   youtube: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&q=80',
   steam: 'https://images.unsplash.com/photo-1612287230217-969e090e8f77?w=600&q=80',
-  windows: 'https://images.unsplash.com/photo-1626218174358-77b797576550?w=600&q=80',
-  office: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=80',
-  vpn: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&q=80',
-  game: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&q=80',
-  gpt: 'https://images.unsplash.com/photo-1675557009875-436f5223b57f?w=600&q=80',
   default: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&q=80'
 };
-
-const getSmartImage = (title, manualUrl) => {
-  if (manualUrl && manualUrl.length > 5) return manualUrl;
+const getSmartImage = (title) => {
   const lower = (title || "").toLowerCase();
-  for (const [key, url] of Object.entries(AUTO_IMAGES)) {
-    if (lower.includes(key)) return url;
-  }
+  for (const [key, url] of Object.entries(AUTO_IMAGES)) if (lower.includes(key)) return url;
   return AUTO_IMAGES.default;
 };
-
-// Hàng trưng bày (Hiển thị khi kho hết hàng)
-const SHOWCASE_PRODUCTS = [
-  { id: 'demo1', title: 'Netflix Premium 4K', price: 69000, tag: 'VIP' },
-  { id: 'demo2', title: 'Spotify Premium 1 Năm', price: 299000, tag: 'Music' },
-  { id: 'demo3', title: 'Youtube Premium', price: 25000, tag: 'Hot' },
-  { id: 'demo4', title: 'Windows 11 Pro Key', price: 150000, tag: 'Soft' },
-];
-
 const formatVND = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
 
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
-  const bg = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
+  const bg = type === 'success' ? 'bg-emerald-600' : 'bg-rose-600';
   return (
     <div className={`fixed top-6 right-6 ${bg} text-white px-6 py-4 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 animate-slide-in border border-white/10`}>
-      {type === 'success' ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
-      <span className="font-medium text-sm">{message}</span>
-      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100"><XCircle size={18}/></button>
+      <span className="font-bold">{message}</span>
+      <button onClick={onClose}><X size={18}/></button>
+    </div>
+  );
+};
+
+// --- COMPONENT LỊCH SỬ ---
+const HistoryModal = ({ user, onClose }) => {
+  const [history, setHistory] = useState([]);
+  
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'purchases'), orderBy('purchasedAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const now = new Date();
+      snapshot.docs.forEach(async (docSnap) => {
+        const item = docSnap.data();
+        const diffDays = Math.ceil(Math.abs(now - new Date(item.purchasedAt)) / (1000 * 60 * 60 * 24));
+        if (diffDays > 30) await deleteDoc(docSnap.ref);
+      });
+      setHistory(snapshot.docs.map(d => ({id: d.id, ...d.data()})));
+    });
+    return () => unsub();
+  }, [user]);
+
+  return (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <div className="bg-[#121214] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+        <div className="p-4 border-b border-white/10 flex justify-between bg-[#09090b]">
+          <h3 className="font-bold flex gap-2 text-violet-400"><History/> LỊCH SỬ (Xóa sau 30 ngày)</h3>
+          <button onClick={onClose}><X/></button>
+        </div>
+        <div className="p-4 overflow-y-auto custom-scrollbar space-y-3">
+          {history.length === 0 && <p className="text-center text-gray-500 py-10">Chưa có đơn hàng nào.</p>}
+          {history.map(item => (
+            <div key={item.id} className="bg-black/50 border border-white/5 rounded-xl p-4">
+              <div className="flex justify-between mb-2">
+                <h4 className="font-bold text-white text-sm">{item.title}</h4>
+                <span className="text-xs text-gray-500">{new Date(item.purchasedAt).toLocaleString()}</span>
+              </div>
+              <div className="bg-[#09090b] p-3 rounded border border-white/10 font-mono text-xs text-emerald-400 select-all">
+                {item.data}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
@@ -105,207 +133,205 @@ const Toast = ({ message, type, onClose }) => {
 const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => {
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState('home');
+  const [showMenu, setShowMenu] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  
+  // STATE NẠP TIỀN
+  const [depositStep, setDepositStep] = useState(1);
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositNote, setDepositNote] = useState('');
+  const [transCode, setTransCode] = useState('');
+  const [timeLeft, setTimeLeft] = useState(600);
 
   useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'products'));
-    const unsub = onSnapshot(q, (snapshot) => {
+    const unsub = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'products')), (snapshot) => {
       setProducts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
   }, []);
 
-  const handleBuy = async (prod, isDemo) => {
-    if (isDemo) return showToast("Hàng mẫu không thể mua.", "info");
-    if (!user) return showToast("Vui lòng đăng nhập Google để mua!", "error");
-    if ((userData?.balance || 0) < prod.price) return showToast("Số dư không đủ. Hãy nạp thêm!", "error");
+  useEffect(() => {
+    let timer;
+    if (depositStep === 2 && timeLeft > 0) {
+      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    } else if (timeLeft === 0) {
+      setDepositStep(1);
+      showToast("Mã giao dịch đã hết hạn!", "error");
+    }
+    return () => clearInterval(timer);
+  }, [depositStep, timeLeft]);
 
+  const handleBuy = async (prod) => {
+    if (!user) return showToast("Vui lòng đăng nhập!", "error");
+    if ((userData?.balance || 0) < prod.price) return showToast("Số dư không đủ!", "error");
     try {
-      // 1. Kiểm tra hàng còn không
       const prodRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', prod.id);
       const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) return showToast("Sản phẩm này vừa hết hàng!", "error");
+      if (!prodSnap.exists()) return showToast("Hết hàng!", "error");
       
       const fullData = prodSnap.data();
-      
-      // 2. Trừ tiền và xóa hàng
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
-        balance: userData.balance - prod.price
-      });
+      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), { balance: userData.balance - prod.price });
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'purchases'), { ...fullData, purchasedAt: new Date().toISOString() });
       await deleteDoc(prodRef);
-
-      // 3. Trả hàng
-      alert(`🎉 MUA THÀNH CÔNG!\n\n📦 DỮ LIỆU TÀI KHOẢN:\n${fullData.data}\n\n(Vui lòng lưu lại ngay)`);
-      showToast("Giao dịch thành công!", "success");
+      
+      alert(`🎉 MUA THÀNH CÔNG!\nDATA: ${fullData.data}`);
+      setShowHistory(true);
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const handleDeposit = async (e) => {
-    e.preventDefault();
-    if (depositAmount < 10000) return showToast("Nạp tối thiểu 10,000đ", "error");
+  const startDeposit = () => {
+    if (!depositAmount || depositAmount < 10000) return showToast("Tối thiểu 10,000đ", "error");
+    
+    // --- LOGIC TẠO MÃ MỚI ---
+    // 1. Lấy tên user (bỏ ký tự đặc biệt)
+    const safeName = user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    // 2. Tạo số ngẫu nhiên dài (Dùng Date.now cho không trùng + Random)
+    const randomNum = Math.floor(Math.random() * 1000000000); 
+    // 3. Ghép lại: NAP + TÊN + SỐ
+    const code = `NAP${safeName}${randomNum}`;
+    
+    setTransCode(code);
+    setTimeLeft(600);
+    setDepositStep(2);
+  };
+
+  const confirmDeposit = async () => {
     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), {
       userId: user.uid, userEmail: user.email, amount: Number(depositAmount), 
-      note: depositNote, status: 'pending', createdAt: new Date().toISOString()
+      note: transCode, status: 'pending', createdAt: new Date().toISOString()
     });
-    setDepositAmount(''); setDepositNote('');
-    showToast("Đã gửi yêu cầu nạp!", "success");
+    showToast("Đã gửi yêu cầu! Admin sẽ duyệt ngay.", "success");
+    setDepositStep(1);
+    setDepositAmount('');
+  };
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans pb-20 selection:bg-violet-500 selection:text-white">
-      
-      {/* NAVBAR */}
-      <nav className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-md border-b border-white/10">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          {/* FIX: Bấm Logo về trang chủ */}
-          <div className="flex items-center gap-2 cursor-pointer select-none group" onClick={() => setActiveTab('home')}>
-            <div className="bg-gradient-to-tr from-violet-600 to-fuchsia-600 p-1.5 rounded group-hover:scale-110 transition">
-               <Gamepad2 size={20} className="text-white" /> 
-            </div>
-            <span className="font-bold text-xl tracking-tight">CYBER<span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">SHOP</span></span>
-          </div>
+    <div className="min-h-screen bg-[#09090b] text-white font-sans pb-20 relative">
+      {showHistory && <HistoryModal user={user} onClose={() => setShowHistory(false)} />}
 
-          <div className="flex items-center gap-3">
+      <nav className="sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur border-b border-white/10 p-4">
+        <div className="container mx-auto flex justify-between items-center">
+          <div className="font-bold text-xl text-violet-500 flex gap-2 cursor-pointer" onClick={() => setActiveTab('home')}>
+            <Gamepad2/> CYBERSHOP
+          </div>
+          
+          <div className="flex items-center gap-4">
             {user ? (
               <>
-                <div onClick={() => setActiveTab('deposit')} className="cursor-pointer flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 hover:border-emerald-500 transition group">
-                  <Wallet size={14} className="text-emerald-400 group-hover:animate-pulse"/>
-                  <span className="font-mono font-bold text-emerald-400 text-sm">{formatVND(userData?.balance || 0)}</span>
-                  <Plus size={14} className="text-gray-500 group-hover:text-white"/>
+                <div onClick={() => setActiveTab('deposit')} className="cursor-pointer hidden md:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 hover:border-emerald-500 transition">
+                  <span className="text-emerald-400 font-bold text-sm">{formatVND(userData?.balance || 0)}</span>
+                  <Plus size={14} className="text-gray-500"/>
                 </div>
-                <button onClick={onLogout} className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-rose-500 transition"><LogOut size={18}/></button>
+                <div className="relative">
+                  <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-white/10 rounded"><Menu size={24}/></button>
+                  {showMenu && (
+                    <div className="absolute right-0 top-12 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+                      <div className="p-4 bg-[#09090b] border-b border-white/5">
+                        <p className="text-sm font-bold truncate">{user.email}</p>
+                        <p className="text-xs text-emerald-400 font-mono">{formatVND(userData?.balance || 0)}</p>
+                      </div>
+                      <button onClick={() => { setActiveTab('deposit'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex gap-2"><Wallet size={16}/> Nạp tiền</button>
+                      <button onClick={() => { setShowHistory(true); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex gap-2"><History size={16}/> Lịch sử mua</button>
+                      <button onClick={onLogout} className="w-full text-left px-4 py-3 text-sm text-rose-500 hover:bg-white/5 flex gap-2"><LogOut size={16}/> Đăng xuất</button>
+                    </div>
+                  )}
+                </div>
               </>
-            ) : (
-              <button onClick={onLogin} className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition">
-                <User size={16}/> Đăng Nhập Google
-              </button>
-            )}
+            ) : <button onClick={onLogin} className="bg-white text-black px-4 py-1.5 rounded-lg font-bold text-sm">Đăng Nhập</button>}
           </div>
         </div>
       </nav>
 
-      {/* BODY */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto p-4 space-y-8">
         {activeTab === 'home' ? (
-          <div className="space-y-12 animate-fade-in">
-            {/* Banner */}
-            <div className="relative rounded-2xl overflow-hidden h-64 flex items-center p-8 bg-gradient-to-r from-violet-900 via-[#0a0a0a] to-black border border-white/10">
-               <div className="z-10 max-w-lg">
-                 <h1 className="text-4xl md:text-5xl font-black mb-2 text-white">SHOP ACC <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">TỰ ĐỘNG 24/7</span></h1>
-                 <p className="text-gray-400 mb-6 text-sm md:text-base">Hệ thống bán hàng siêu tốc. Uy tín - Bảo hành trọn đời.</p>
-                 {!user && <button onClick={onLogin} className="bg-white text-black px-6 py-2 rounded-lg font-bold hover:scale-105 transition shadow-[0_0_15px_rgba(255,255,255,0.3)]">Đăng nhập ngay</button>}
-               </div>
+          <>
+            <div className="bg-gradient-to-r from-violet-900 to-black p-8 rounded-2xl border border-white/10 relative overflow-hidden">
+               <h2 className="text-3xl font-black mb-2 relative z-10">KHO TÀI KHOẢN TỰ ĐỘNG</h2>
+               <p className="text-gray-400 mb-4 relative z-10">Admin cập nhật hàng liên tục - Không cần load trang.</p>
+               <div className="absolute right-0 top-0 opacity-20"><Zap size={150}/></div>
             </div>
 
-            {/* Sản phẩm thật */}
             <div>
-              <div className="flex items-center justify-between mb-6">
-                 <h2 className="text-xl font-bold text-emerald-400 flex items-center gap-2"><Zap size={20}/> TÀI KHOẢN CÓ SẴN</h2>
+              <h2 className="text-xl font-bold mb-4 text-emerald-400 flex items-center gap-2"><Tag/> SẢN PHẨM MỚI NHẤT</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {products.length === 0 && <p className="text-gray-500 italic col-span-4 text-center py-8">Kho hàng đang cập nhật...</p>}
+                {products.map(p => (
+                  <div key={p.id} className="bg-[#121214] border border-white/10 rounded-xl overflow-hidden hover:border-violet-500 transition group">
+                    <div className="h-40 relative">
+                      <img src={getSmartImage(p.title)} className="w-full h-full object-cover group-hover:scale-110 transition duration-700"/>
+                      <span className="absolute bottom-2 right-2 bg-emerald-500 text-black text-[10px] font-bold px-2 py-0.5 rounded">AUTO</span>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-bold truncate text-white">{p.title}</h3>
+                      <div className="flex justify-between items-center mt-3">
+                        <span className="text-emerald-400 font-bold">{formatVND(p.price)}</span>
+                        <button onClick={()=>handleBuy(p)} className="bg-white text-black px-3 py-1 rounded text-xs font-bold hover:bg-violet-500 hover:text-white transition">MUA NGAY</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              
-              {products.length === 0 ? (
-                <div className="text-center py-12 border border-dashed border-gray-800 rounded-xl text-gray-500 bg-[#0a0a0a]">
-                   <Search size={32} className="mx-auto mb-2 opacity-50"/>
-                   Kho hàng đang được cập nhật thêm...
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {products.map(p => (
-                    <div key={p.id} className="bg-[#0a0a0a] border border-white/5 rounded-xl overflow-hidden hover:border-violet-500 transition group hover:-translate-y-1 shadow-lg">
-                      <div className="h-40 relative overflow-hidden">
-                        <img src={getSmartImage(p.title, p.image)} className="w-full h-full object-cover group-hover:scale-110 transition duration-700"/>
-                        <span className="absolute bottom-2 right-2 bg-emerald-500 text-black text-[10px] font-black px-2 py-0.5 rounded uppercase">{p.tag || 'AUTO'}</span>
-                      </div>
-                      <div className="p-4">
-                        <h3 className="font-bold truncate text-white">{p.title}</h3>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{p.desc || 'Tài khoản chất lượng cao'}</p>
-                        <div className="flex justify-between items-center mt-4">
-                          <span className="text-emerald-400 font-bold font-mono">{formatVND(p.price)}</span>
-                          <button onClick={() => handleBuy(p, false)} className="bg-white text-black px-3 py-1 rounded text-xs font-bold hover:bg-violet-500 hover:text-white transition">MUA NGAY</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-
-            {/* Hàng mẫu */}
-            <div>
-               <h2 className="text-xl font-bold mb-6 text-gray-400 flex items-center gap-2"><Star size={20}/> HÀNG MẪU (DEMO)</h2>
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 opacity-60 hover:opacity-100 transition duration-500">
-                 {SHOWCASE_PRODUCTS.map(p => (
-                    <div key={p.id} className="bg-[#0a0a0a] border border-white/5 rounded-xl overflow-hidden">
-                       <div className="h-40 relative"><img src={getSmartImage(p.title)} className="w-full h-full object-cover grayscale"/></div>
-                       <div className="p-4">
-                         <h3 className="font-bold text-gray-400 truncate">{p.title}</h3>
-                         <div className="flex justify-between items-center mt-2">
-                            <span className="text-violet-400 font-bold text-sm">{formatVND(p.price)}</span>
-                            <span className="text-xs border border-gray-600 px-2 py-1 rounded text-gray-500">Xem thử</span>
-                         </div>
-                       </div>
-                    </div>
-                 ))}
-               </div>
-            </div>
-          </div>
+          </>
         ) : (
-          // Tab Nạp Tiền
-          <div className="max-w-md mx-auto bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 animate-fade-in shadow-2xl">
-            <button onClick={() => setActiveTab('home')} className="mb-4 text-xs text-gray-500 hover:text-white flex items-center gap-1">← Quay lại Shop</button>
-            <h2 className="text-xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-emerald-400">NẠP TIỀN VÀO VÍ</h2>
-            <div className="bg-violet-900/10 border border-violet-500/20 p-6 rounded-xl mb-6 relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={64}/></div>
-               <p className="text-sm text-violet-300 font-medium">MB BANK (Quân Đội)</p>
-               <p className="text-white font-bold text-2xl my-2 tracking-widest font-mono group-hover:scale-105 transition origin-left">9999 8888 6666</p>
-               <p className="text-xs text-gray-400 font-bold">CHỦ TK: ADMIN SHOP</p>
-               <div className="mt-4 bg-black/40 p-2 rounded text-center border border-dashed border-gray-700">
-                 <span className="text-gray-400 text-xs">Nội dung:</span> <span className="text-yellow-400 font-bold select-all cursor-pointer">NAP {user?.email?.split('@')[0]}</span>
+          <div className="max-w-md mx-auto bg-[#121214] border border-white/10 rounded-2xl p-6 shadow-2xl">
+             <button onClick={() => { setActiveTab('home'); setDepositStep(1); }} className="mb-4 text-xs text-gray-500 hover:text-white flex items-center gap-1">← Hủy bỏ</button>
+             
+             {depositStep === 1 ? (
+               <>
+                 <h2 className="text-xl font-bold mb-6 text-center text-emerald-400">NHẬP SỐ TIỀN CẦN NẠP</h2>
+                 <input type="number" className="bg-black border border-gray-700 p-4 text-white rounded-xl w-full text-2xl font-bold text-center outline-none focus:border-emerald-500 mb-4" placeholder="0" value={depositAmount} onChange={e=>setDepositAmount(e.target.value)}/>
+                 <button onClick={startDeposit} className="bg-emerald-600 w-full py-4 rounded-xl font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">TIẾP TỤC →</button>
+               </>
+             ) : (
+               <div className="text-center animate-fade-in">
+                 <h2 className="text-xl font-bold mb-2 text-white">QUÉT MÃ QR ĐỂ THANH TOÁN</h2>
+                 <p className="text-xs text-rose-400 mb-4 flex justify-center gap-1 items-center"><Clock size={12}/> Hết hạn sau: {formatTime(timeLeft)}</p>
+                 
+                 <div className="bg-white p-4 rounded-xl mb-4 inline-block shadow-xl">
+                    {/* QR Code tự động điền Nội dung và Số tiền */}
+                    <img src={`https://img.vietqr.io/image/MB-999988886666-compact.png?amount=${depositAmount}&addInfo=${transCode}`} alt="QR" className="w-48 h-48 object-contain"/>
+                 </div>
+
+                 <div className="bg-[#09090b] border border-white/10 p-4 rounded-xl mb-4 text-left space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 text-xs">Số tiền:</span>
+                      <span className="text-emerald-400 font-bold">{formatVND(depositAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 text-xs">Nội dung (Bắt buộc):</span>
+                      <div className="flex gap-2 items-center">
+                        <span className="text-yellow-400 font-bold font-mono text-sm break-all">{transCode}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(transCode); showToast("Đã copy mã!", "success"); }} className="p-1 hover:text-white text-gray-500"><Copy size={14}/></button>
+                      </div>
+                    </div>
+                 </div>
+
+                 <button onClick={confirmDeposit} className="bg-emerald-600 w-full py-3 rounded-xl font-bold text-white hover:bg-emerald-500 mb-2">ĐÃ CHUYỂN KHOẢN XONG</button>
+                 <p className="text-[10px] text-gray-500">Hệ thống sẽ tự động cộng tiền ngay khi Admin duyệt.</p>
                </div>
-            </div>
-            <form onSubmit={handleDeposit} className="space-y-4">
-               <div>
-                 <label className="text-xs text-gray-500 block mb-1">Số tiền muốn nạp</label>
-                 <input type="number" value={depositAmount} onChange={e=>setDepositAmount(e.target.value)} className="w-full bg-black border border-gray-800 rounded p-3 text-white focus:border-emerald-500 outline-none transition" placeholder="VNĐ" />
-               </div>
-               <div>
-                 <label className="text-xs text-gray-500 block mb-1">Mã giao dịch (Nếu có)</label>
-                 <input type="text" value={depositNote} onChange={e=>setDepositNote(e.target.value)} className="w-full bg-black border border-gray-800 rounded p-3 text-white focus:border-emerald-500 outline-none transition" placeholder="Nhập mã..." />
-               </div>
-               <button className="w-full bg-white text-black font-bold py-3 rounded hover:bg-gray-200 transition shadow-lg shadow-white/10">XÁC NHẬN ĐÃ CHUYỂN</button>
-            </form>
+             )}
           </div>
         )}
       </main>
 
-      <footer className="border-t border-white/5 mt-auto py-8 text-center bg-[#050505]">
-        <p className="text-gray-600 text-xs mb-4">© 2024 CyberShop System.</p>
-        <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-800 hover:text-white flex items-center justify-center gap-1 mx-auto transition opacity-50 hover:opacity-100">
-          <Lock size={10} /> ACCESS ADMIN PROTOCOL
-        </button>
+      <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]">
+        <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-700 hover:text-white flex items-center justify-center gap-1 mx-auto"><Lock size={10}/> ADMIN</button>
       </footer>
     </div>
   );
 };
 
-// --- GIAO DIỆN ADMIN (FULL TÍNH NĂNG) ---
+// --- GIAO DIỆN ADMIN ---
 const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const [products, setProducts] = useState([]);
   const [deposits, setDeposits] = useState([]);
-  
-  // Form thêm sản phẩm đầy đủ
-  const [newProd, setNewProd] = useState({ 
-    title: '', price: '', tag: 'VIP', desc: '', data: '', image: '' 
-  });
-
-  useEffect(() => {
-    // Chỉ admin mới được ở lại
-    if (user?.email !== SUPER_ADMIN_EMAIL && user?.email !== 'admin@system.local') {
-       // Code cũ thì setView('shop'), nhưng để bạn vào được tôi tạm comment lại dòng dưới
-       // setView('shop');
-    }
-  }, [user]);
+  const [newProd, setNewProd] = useState({ title: '', price: '', tag: 'VIP', desc: '', data: '', image: '' });
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), s => setProducts(s.docs.map(d => ({id:d.id, ...d.data()}))));
@@ -316,10 +342,8 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), {
-        ...newProd, price: Number(newProd.price), createdAt: new Date().toISOString()
-      });
-      showToast("Đã thêm sản phẩm!", "success");
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), { ...newProd, price: Number(newProd.price) });
+      showToast("Đã đăng bán! Khách sẽ thấy ngay.", "success");
       setNewProd({ title: '', price: '', tag: 'VIP', desc: '', data: '', image: '' });
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -330,107 +354,60 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       const snap = await getDoc(uRef);
       await updateDoc(uRef, { balance: (snap.data()?.balance || 0) + d.amount });
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), { status: 'approved' });
-      showToast("Đã duyệt + cộng tiền!", "success");
+      showToast("Đã duyệt! Tiền về ví khách ngay lập tức.", "success");
     } catch (e) { showToast(e.message, "error"); }
   };
 
   return (
-    <div className="min-h-screen bg-black text-gray-300 font-mono text-sm p-4 pb-20">
+    <div className="min-h-screen bg-black text-white font-mono text-sm p-4 pb-20">
       <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4 sticky top-0 bg-black z-50">
-        <div className="text-rose-500 font-bold flex gap-2 tracking-widest"><Terminal size={18}/> QUẢN TRỊ VIÊN</div>
-        <button onClick={() => { onLogout(); setView('shop'); }} className="text-gray-400 hover:text-white border border-gray-800 px-3 py-1 rounded">THOÁT</button>
+        <div className="text-rose-500 font-bold flex gap-2"><Terminal/> ADMIN DASHBOARD</div>
+        <button onClick={() => { onLogout(); setView('shop'); }} className="text-gray-400 hover:text-white">EXIT</button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* FORM ĐĂNG BÁN (Đầy đủ trường bạn yêu cầu) */}
-        <div className="bg-[#0f0f11] border border-gray-800 p-5 rounded-lg h-fit shadow-lg shadow-emerald-900/10">
-           <h3 className="text-white font-bold mb-4 text-emerald-500 border-b border-emerald-900/30 pb-2 flex gap-2"><Database size={16}/> ĐĂNG BÁN ACC</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[#111] border-2 border-emerald-500/50 p-6 rounded-lg shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+           <h3 className="text-emerald-400 font-bold mb-4 text-lg flex gap-2"><Database/> ĐĂNG BÁN (Live)</h3>
            <form onSubmit={handleAdd} className="space-y-3">
-             <div>
-               <label className="text-[10px] text-gray-500 uppercase font-bold">Tên hiển thị</label>
-               <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500 transition" 
-                 placeholder="VD: Netflix Premium 1 Tháng" 
-                 value={newProd.title} onChange={e=>setNewProd({...newProd, title:e.target.value})} required/>
-             </div>
-             
+             <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Tên sản phẩm" value={newProd.title} onChange={e=>setNewProd({...newProd, title:e.target.value})} required/>
              <div className="grid grid-cols-2 gap-2">
-                <div>
-                   <label className="text-[10px] text-gray-500 uppercase font-bold">Giá (VNĐ)</label>
-                   <input type="number" className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500 transition" 
-                     placeholder="69000" 
-                     value={newProd.price} onChange={e=>setNewProd({...newProd, price:e.target.value})} required/>
-                </div>
-                <div>
-                   <label className="text-[10px] text-gray-500 uppercase font-bold">Tag (Loại)</label>
-                   <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500 transition" 
-                     placeholder="VIP/Game" 
-                     value={newProd.tag} onChange={e=>setNewProd({...newProd, tag:e.target.value})} />
-                </div>
+                <input type="number" className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Giá" value={newProd.price} onChange={e=>setNewProd({...newProd, price:e.target.value})} required/>
+                <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Tag" value={newProd.tag} onChange={e=>setNewProd({...newProd, tag:e.target.value})} />
              </div>
-
-             <div>
-                <label className="text-[10px] text-gray-500 uppercase font-bold">Mô tả ngắn</label>
-                <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500 transition" 
-                  placeholder="Bảo hành 1 đổi 1..." 
-                  value={newProd.desc} onChange={e=>setNewProd({...newProd, desc:e.target.value})} />
-             </div>
-
-             <div>
-                <label className="text-[10px] text-gray-500 uppercase font-bold">Link Ảnh (Tùy chọn)</label>
-                <div className="flex gap-1">
-                  <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500 transition" 
-                    placeholder="https://..." 
-                    value={newProd.image} onChange={e=>setNewProd({...newProd, image:e.target.value})} />
-                  <div className="bg-gray-800 p-2 flex items-center justify-center border border-gray-700"><ImageIcon size={14}/></div>
-                </div>
-             </div>
-
-             <div>
-                <label className="text-[10px] text-rose-500 uppercase font-bold flex gap-1 items-center"><Lock size={10}/> DỮ LIỆU MẬT (Acc|Pass)</label>
-                <textarea className="w-full bg-black border border-rose-900/50 p-2 text-emerald-400 h-24 outline-none focus:border-rose-500 font-bold font-mono text-xs transition" 
-                  placeholder="user: admin@gmail.com | pass: 123456" 
-                  value={newProd.data} onChange={e=>setNewProd({...newProd, data:e.target.value})} required/>
-                <p className="text-[10px] text-gray-600 mt-1">* Khách mua xong mới thấy.</p>
-             </div>
-
-             <button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white py-2 font-bold mt-2 rounded shadow-lg">ĐĂNG SẢN PHẨM</button>
+             <textarea className="w-full bg-black border border-rose-900 p-2 text-emerald-400 h-24 outline-none focus:border-rose-500 font-bold" placeholder="DỮ LIỆU MẬT: user|pass" value={newProd.data} onChange={e=>setNewProd({...newProd, data:e.target.value})} required/>
+             <button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white py-3 font-bold mt-2 rounded">ĐĂNG BÁN NGAY</button>
            </form>
         </div>
 
-        {/* CỘT PHẢI: DANH SÁCH */}
-        <div className="lg:col-span-2 space-y-6">
-           {/* Duyệt tiền */}
-           <div className="bg-[#0f0f11] border border-gray-800 p-5 rounded-lg">
-              <h3 className="text-white font-bold mb-4 text-yellow-500 border-b border-yellow-900/30 pb-2 flex gap-2"><Wallet size={16}/> YÊU CẦU NẠP TIỀN ({deposits.filter(d => d.status === 'pending').length})</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-6">
+           <div className="bg-[#111] border border-gray-800 p-6 rounded-lg">
+              <h3 className="text-yellow-500 font-bold mb-4 flex gap-2"><Wallet/> DUYỆT TIỀN (Realtime)</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {deposits.filter(d => d.status === 'pending').map(d => (
-                  <div key={d.id} className="bg-black p-3 border-l-4 border-yellow-500 flex justify-between items-center rounded-r">
-                     <div><div className="text-white font-bold">{d.userEmail}</div><div className="text-xs text-gray-500 font-mono">Mã: {d.note}</div></div>
-                     <div className="flex gap-2 items-center">
-                        <span className="text-emerald-400 font-bold">+{d.amount.toLocaleString()} đ</span>
-                        <button onClick={()=>handleApprove(d)} className="bg-emerald-600 text-white px-2 py-1 text-xs font-bold rounded">DUYỆT</button>
-                        <button onClick={()=>updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), {status:'rejected'})} className="bg-rose-900 text-white px-2 py-1 text-xs font-bold rounded">HỦY</button>
+                  <div key={d.id} className="bg-black p-3 border-l-4 border-yellow-500 flex justify-between items-center animate-fade-in">
+                     <div>
+                       <div className="font-bold">{d.userEmail}</div>
+                       <div className="text-xs text-yellow-400 font-mono">CODE: {d.note}</div>
+                       <div className="text-xs text-gray-500">{d.amount.toLocaleString()} đ</div>
+                     </div>
+                     <div className="flex gap-2">
+                        <button onClick={()=>handleApprove(d)} className="text-emerald-500 font-bold border border-emerald-500 px-2 py-1 text-xs hover:bg-emerald-500 hover:text-black transition">DUYỆT</button>
+                        <button onClick={()=>updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), {status:'rejected'})} className="text-rose-500 font-bold border border-rose-500 px-2 py-1 text-xs">HỦY</button>
                      </div>
                   </div>
                 ))}
-                {deposits.filter(d => d.status === 'pending').length === 0 && <p className="text-gray-600 italic text-xs">Không có yêu cầu nào.</p>}
+                {deposits.filter(d => d.status === 'pending').length === 0 && <p className="text-gray-600 italic text-center">Đang chờ đơn mới...</p>}
               </div>
            </div>
 
-           {/* Kho hàng */}
-           <div className="bg-[#0f0f11] border border-gray-800 p-5 rounded-lg">
-              <h3 className="text-white font-bold mb-4 text-blue-500 border-b border-blue-900/30 pb-2 flex gap-2"><Tag size={16}/> KHO HÀNG ({products.length})</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+           <div className="bg-[#111] border border-gray-800 p-6 rounded-lg">
+              <h3 className="text-blue-500 font-bold mb-4 flex gap-2"><Lock/> KHO HÀNG ({products.length})</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                  {products.map(p => (
-                    <div key={p.id} className="flex gap-3 bg-black p-2 border border-gray-800 items-center rounded hover:border-gray-600 transition">
-                       <img src={getSmartImage(p.title, p.image)} className="w-8 h-8 object-cover opacity-60 rounded"/>
-                       <div className="flex-1 min-w-0">
-                          <div className="text-white text-xs font-bold truncate">{p.title}</div>
-                          <div className="text-[10px] text-gray-500 truncate font-mono">Data: {p.data}</div>
-                       </div>
+                    <div key={p.id} className="flex gap-2 bg-black p-2 border border-gray-800 items-center">
+                       <div className="flex-1 truncate text-xs">{p.title}</div>
                        <div className="text-emerald-500 font-bold text-xs">{p.price.toLocaleString()}</div>
-                       <button onClick={()=>deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id))} className="text-rose-900 hover:text-rose-500 p-1"><Trash2 size={14}/></button>
+                       <button onClick={()=>deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id))} className="text-rose-500 hover:text-white px-2"><Trash2 size={14}/></button>
                     </div>
                  ))}
               </div>
@@ -441,7 +418,6 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   );
 };
 
-// --- APP CONTROLLER ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -454,18 +430,15 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const ref = doc(db, 'artifacts', appId, 'users', u.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setUserData(data);
-          // Tự động chuyển trang Admin nếu đúng email
-          if (data.email === SUPER_ADMIN_EMAIL && view === 'admin-login') setView('admin-panel');
-        } else {
-          const initData = { email: u.email, balance: 0, role: 'user', createdAt: serverTimestamp() };
-          await setDoc(ref, initData);
-          setUserData(initData);
-        }
+        const unsubUser = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+            if (docSnap.data().email === SUPER_ADMIN_EMAIL && view === 'admin-login') setView('admin-panel');
+          } else {
+            setDoc(doc(db, 'artifacts', appId, 'users', u.uid), { email: u.email, balance: 0, role: 'user', createdAt: serverTimestamp() });
+          }
+        });
+        return () => unsubUser();
       }
     });
     return () => unsub();
@@ -474,7 +447,6 @@ export default function App() {
   const handleAdminAuth = async (email, password) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Vào thẳng Admin luôn, không check role ở đây nữa cho đỡ lỗi
       setView('admin-panel');
     } catch (e) { showToast("Sai tài khoản hoặc mật khẩu", "error"); }
   };
@@ -486,14 +458,13 @@ export default function App() {
         <AdminPanel user={user} onLogout={()=>signOut(auth)} setView={setView} showToast={showToast} />
       ) : view === 'admin-login' ? (
         <div className="min-h-screen bg-black flex items-center justify-center font-mono">
-           <div className="w-full max-w-sm p-8 border border-rose-900/30 bg-[#0a0a0a] shadow-[0_0_50px_rgba(225,29,72,0.15)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-full blur-2xl"></div>
-              <h2 className="text-rose-600 font-bold mb-6 flex items-center gap-2 tracking-widest"><Lock size={16}/> SECURE LOGIN</h2>
+           <div className="w-full max-w-sm p-8 border border-rose-900/30 bg-[#0a0a0a] shadow-lg">
+              <h2 className="text-rose-600 font-bold mb-6 flex items-center gap-2"><Lock size={16}/> SECURE LOGIN</h2>
               <form onSubmit={(e) => { e.preventDefault(); handleAdminAuth(e.target.email.value, e.target.password.value); }} className="space-y-4">
-                 <input name="email" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600 transition" placeholder="admin@shop.com" />
-                 <input type="password" name="password" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600 transition" placeholder="********" />
-                 <button className="w-full bg-rose-700 hover:bg-rose-600 text-white py-2 font-bold text-xs mt-4 transition">AUTHENTICATE</button>
-                 <button type="button" onClick={()=>setView('shop')} className="w-full text-gray-600 text-[10px] mt-2 hover:text-white">RETURN TO SHOP</button>
+                 <input name="email" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600" placeholder="Email Admin" />
+                 <input type="password" name="password" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600" placeholder="Mật khẩu" />
+                 <button className="w-full bg-rose-700 text-white py-2 font-bold text-xs mt-4">LOGIN</button>
+                 <button type="button" onClick={()=>setView('shop')} className="w-full text-gray-600 text-[10px] mt-2 hover:text-white">BACK</button>
               </form>
            </div>
         </div>
