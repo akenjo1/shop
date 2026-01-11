@@ -31,7 +31,7 @@ import {
   Lock, Terminal, Image as ImageIcon, CreditCard,
   AlertTriangle, ArrowRight, Tag, Database, Menu, 
   History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, 
-  Eye, EyeOff, Package, Globe, Box, Settings
+  Eye, EyeOff, Package, Globe, Box, Settings, Upload
 } from 'lucide-react';
 
 // ==========================================
@@ -46,7 +46,6 @@ const firebaseConfig = {
   appId: "1:307813723666:web:1231c496c082871c1b72cb"
 };
 
-// --- KHỞI TẠO AN TOÀN ---
 let app, auth, db, googleProvider;
 try {
   app = initializeApp(firebaseConfig);
@@ -54,18 +53,18 @@ try {
   db = getFirestore(app);
   googleProvider = new GoogleAuthProvider();
 } catch (error) {
-  console.error("Lỗi khởi tạo Firebase:", error);
+  console.error("Lỗi:", error);
 }
 
 const appId = 'shop-9d1ae'; 
 const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
-// Cấu hình ngân hàng mặc định (Tránh lỗi nếu chưa cài đặt)
+// Giá trị mặc định an toàn cho ngân hàng
 const DEFAULT_BANK = {
-  BANK_ID: "MB",
-  ACCOUNT_NO: "0000000000",
-  ACCOUNT_NAME: "ADMIN",
-  QR_URL: ""
+  BANK_ID: "",
+  ACCOUNT_NO: "",
+  ACCOUNT_NAME: "",
+  QR_IMAGE: "" // Chứa chuỗi Base64 của ảnh
 };
 
 // ==========================================
@@ -92,7 +91,6 @@ const SmartLogo = ({ title, manualUrl, className }) => {
     for (const [key, domain] of Object.entries(DOMAIN_MAP)) {
       if (lower.includes(key)) { found = domain; break; }
     }
-    // Fallback icon mặc định nếu không tìm thấy
     setSrc(found ? getGoogleLogo(found) : 'https://cdn-icons-png.flaticon.com/512/3649/3649281.png');
   }, [title, manualUrl]);
 
@@ -103,8 +101,7 @@ const formatVND = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', cur
 
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
-  // Đã sửa lỗi syntax ở dòng dưới đây
-  const bg = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
+  const bg = type === 'success' ? 'bg-emerald-600' : 'bg-rose-600';
   return (
     <div className={`fixed top-6 right-6 ${bg} text-white px-6 py-4 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 animate-slide-in border border-white/10`}>
       <span className="font-bold">{message}</span>
@@ -282,8 +279,8 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       setProducts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     
-    // 2. Get Bank Config (FIXED PATH: Sử dụng path 6 phần để trỏ vào Document thay vì 5 phần Collection)
-    // Đường dẫn đúng: artifacts(col) -> appId(doc) -> public(col) -> data(doc) -> settings(col) -> bank(doc)
+    // 2. Get Bank Config (Path mới và chính xác)
+    // Dữ liệu ngân hàng được lưu tại: artifacts -> shop-9d1ae -> public -> data -> settings -> bank
     const bankDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank');
     const unsubBank = onSnapshot(bankDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -342,6 +339,11 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   };
 
   const startDeposit = () => {
+    // 🔴 KIỂM TRA QUAN TRỌNG: CÓ BANK HOẶC QR THÌ MỚI CHO NẠP
+    if (!bankConfig || (!bankConfig.QR_IMAGE && !bankConfig.ACCOUNT_NO)) {
+      return showToast("⚠️ Hệ thống nạp đang bảo trì (Chưa có STK). Vui lòng quay lại sau!", "error");
+    }
+
     if (!depositAmount || depositAmount < 10000) return showToast("Tối thiểu 10,000đ", "error");
     const safeName = user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const randomNum = Math.floor(Math.random() * 1000000000); 
@@ -464,7 +466,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                  <h2 className="text-xl font-bold mb-2 text-white">QUÉT MÃ QR ĐỂ THANH TOÁN</h2>
                  <p className="text-xs text-rose-400 mb-4 flex justify-center gap-1 items-center bg-rose-500/10 py-1 rounded border border-rose-500/20"><Clock size={12}/> Hết hạn sau: {formatTime(timeLeft)}</p>
                  <div className="bg-white p-4 rounded-xl mb-4 inline-block shadow-xl">
-                    {/* Hiển thị QR Ảnh Upload (Base64) hoặc VietQR */}
+                    {/* LOGIC QR: Nếu có ảnh upload thì dùng ảnh, không thì dùng VietQR tự tạo */}
                     {bankConfig.QR_IMAGE ? (
                        <img src={bankConfig.QR_IMAGE} alt="QR Bank" className="w-48 h-48 object-contain"/>
                     ) : (
@@ -472,9 +474,11 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                     )}
                  </div>
                  <div className="bg-[#09090b] border border-white/10 p-4 rounded-xl mb-4 text-left space-y-3">
+                    {/* Chỉ hiện thông tin nếu Admin đã nhập */}
                     {bankConfig.BANK_ID && <div className="flex justify-between"><span className="text-gray-500 text-xs">Ngân hàng:</span><span className="text-white font-bold">{bankConfig.BANK_ID}</span></div>}
                     {bankConfig.ACCOUNT_NO && <div className="flex justify-between"><span className="text-gray-500 text-xs">Số TK:</span><span className="text-white font-bold">{bankConfig.ACCOUNT_NO}</span></div>}
                     {bankConfig.ACCOUNT_NAME && <div className="flex justify-between"><span className="text-gray-500 text-xs">Chủ TK:</span><span className="text-white font-bold">{bankConfig.ACCOUNT_NAME}</span></div>}
+                    
                     <div className="h-px bg-white/10 my-1"></div>
                     <div className="flex justify-between"><span className="text-gray-500 text-xs">Số tiền:</span><span className="text-emerald-400 font-bold">{formatVND(depositAmount)}</span></div>
                     <div className="flex justify-between items-center"><span className="text-gray-500 text-xs">Nội dung (Bắt buộc):</span><div className="flex gap-2 items-center"><span className="text-yellow-400 font-bold font-mono text-sm break-all">{transCode}</span><button onClick={() => { navigator.clipboard.writeText(transCode); showToast("Đã copy mã!", "success"); }} className="p-1 hover:text-white text-gray-500"><Copy size={14}/></button></div></div>
@@ -488,7 +492,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       </main>
 
       <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]">
-        {/* Link Admin đã ẩn */}
+        {/* Link Admin đã ẩn. Vào bằng /?panel=admin */}
       </footer>
     </div>
   );
@@ -499,14 +503,14 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const [deposits, setDeposits] = useState([]);
   const [newProd, setNewProd] = useState({ title: '', price: '', tag: 'VIP', desc: '', dataTextarea: '', image: '' });
   
-  // STATE BANK CONFIG (Mới)
+  // STATE BANK CONFIG (Mặc định rỗng để không bị lỗi undefined)
   const [bankSettings, setBankSettings] = useState(DEFAULT_BANK);
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), s => setProducts(s.docs.map(d => ({id:d.id, ...d.data()}))));
     const u2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), s => setDeposits(s.docs.map(d => ({id:d.id, ...d.data()}))));
     
-    // Load config path đúng
+    // Load config an toàn (Dùng doc reference đúng)
     const bankDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank');
     getDoc(bankDocRef).then(snap => {
       if(snap.exists()) setBankSettings(snap.data());
@@ -523,11 +527,11 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
     } catch (e) { showToast("Lỗi lưu cấu hình", "error"); }
   };
 
-  // Xử lý upload ảnh (Convert file sang Base64)
+  // Upload ảnh QR (Chuyển sang Base64)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 1000000) return showToast("Ảnh quá lớn! Hãy chọn ảnh < 1MB", "error"); // Giới hạn 1MB
+      if (file.size > 1000000) return showToast("Ảnh quá lớn! Hãy chọn ảnh < 1MB", "error");
       const reader = new FileReader();
       reader.onloadend = () => {
         setBankSettings({...bankSettings, QR_IMAGE: reader.result});
@@ -572,14 +576,14 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
         {/* CỘT 1: CẤU HÌNH NGÂN HÀNG + ĐĂNG BÁN */}
         <div className="space-y-6">
            
-           {/* BANK CONFIG FORM (UPDATED) */}
+           {/* FORM CẤU HÌNH BANK */}
            <div className="bg-[#111] border border-blue-900/50 p-5 rounded-lg shadow-lg">
               <h3 className="text-blue-400 font-bold mb-4 text-sm flex gap-2 items-center"><Settings size={16}/> CẤU HÌNH NGÂN HÀNG</h3>
               <form onSubmit={handleUpdateBank} className="space-y-3">
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase">Tên NH</label>
+                  <label className="text-[10px] text-gray-500 uppercase">Tên NH (MB, VCB...)</label>
                   <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
-                    value={bankSettings.BANK_ID} onChange={e => setBankSettings({...bankSettings, BANK_ID: e.target.value})} placeholder="Tùy chọn"/>
+                    value={bankSettings.BANK_ID} onChange={e => setBankSettings({...bankSettings, BANK_ID: e.target.value})} placeholder="Tùy chọn (để trống nếu dùng ảnh QR)"/>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                    <div>
@@ -588,15 +592,15 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                        value={bankSettings.ACCOUNT_NO} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NO: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
                    <div>
-                     <label className="text-[10px] text-gray-500 uppercase">Tên Chủ TK</label>
+                     <label className="text-[10px] text-gray-500 uppercase">Chủ TK</label>
                      <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
                        value={bankSettings.ACCOUNT_NAME} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NAME: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
                 </div>
                 
-                {/* UPLOAD QR IMAGE */}
+                {/* UPLOAD ẢNH QR */}
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase flex gap-1 items-center mb-1"><Upload size={10}/> Tải ảnh QR (BẮT BUỘC)</label>
+                  <label className="text-[10px] text-gray-500 uppercase flex gap-1 items-center mb-1"><Upload size={10}/> Tải ảnh QR (Khuyên dùng)</label>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"/>
                   {bankSettings.QR_IMAGE && <p className="text-[10px] text-emerald-500 mt-1">✓ Đã có ảnh QR</p>}
                 </div>
@@ -605,8 +609,8 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
               </form>
            </div>
 
-           {/* ADD PRODUCT FORM */}
-           <div className="bg-[#111] border-2 border-emerald-500/50 p-5 rounded-lg shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+           {/* FORM ĐĂNG BÁN */}
+           <div className="bg-[#111] border-2 border-emerald-500/50 p-5 rounded-lg shadow-lg">
               <h3 className="text-emerald-400 font-bold mb-4 text-sm flex gap-2"><Database size={16}/> ĐĂNG BÁN (Live)</h3>
               <form onSubmit={handleAdd} className="space-y-3">
                 <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Tên sản phẩm" value={newProd.title} onChange={e=>setNewProd({...newProd, title:e.target.value})} required/>
@@ -667,7 +671,6 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
-  // KHỞI TẠO VIEW DỰA TRÊN URL (ĐỂ VÀO ADMIN)
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('panel') === 'admin' ? 'admin-login' : 'shop';
