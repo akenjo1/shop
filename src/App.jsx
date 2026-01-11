@@ -31,7 +31,7 @@ import {
   Lock, Terminal, Image as ImageIcon, CreditCard,
   AlertTriangle, ArrowRight, Tag, Database, Menu, 
   History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, 
-  Eye, EyeOff, Package, Globe, Box, Settings, Upload
+  Eye, EyeOff, Package, Globe, Box, Settings, Upload, Loader2
 } from 'lucide-react';
 
 // ==========================================
@@ -59,12 +59,11 @@ try {
 const appId = 'shop-9d1ae'; 
 const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
-// Giá trị mặc định an toàn cho ngân hàng
 const DEFAULT_BANK = {
   BANK_ID: "",
   ACCOUNT_NO: "",
   ACCOUNT_NAME: "",
-  QR_IMAGE: "" // Chứa chuỗi Base64 của ảnh
+  QR_IMAGE: "" 
 };
 
 // ==========================================
@@ -215,19 +214,28 @@ const HistoryModal = ({ user, onClose }) => {
 
 const BuyModal = ({ product, user, balance, onClose, onConfirm }) => {
   const [qty, setQty] = useState(1);
+  const [isProcessing, setIsProcessing] = useState(false); // Trạng thái xử lý
   const maxStock = product.stock ? product.stock.length : 0;
+  
   const changeQty = (val) => {
     let newQty = qty + val;
     if (newQty < 1) newQty = 1;
     if (newQty > maxStock) newQty = maxStock;
     setQty(newQty);
   };
+  
   const totalPrice = product.price * qty;
+
+  const handleBuy = async () => {
+    setIsProcessing(true);
+    await onConfirm(product, qty, totalPrice);
+    setIsProcessing(false);
+  }
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
        <div className="bg-[#18181b] border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative">
-          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white" disabled={isProcessing}><X size={20}/></button>
           <div className="flex gap-4 mb-6">
              <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 p-2">
                 <SmartLogo title={product.title} manualUrl={product.image} className="w-full h-full object-contain" />
@@ -240,16 +248,22 @@ const BuyModal = ({ product, user, balance, onClose, onConfirm }) => {
           <div className="bg-black/40 p-4 rounded-xl mb-6 border border-white/5">
              <div className="flex justify-between mb-2 text-sm text-gray-400"><span>Số lượng (Còn {maxStock}):</span></div>
              <div className="flex items-center justify-between bg-[#09090b] rounded-lg border border-gray-700 p-1">
-                <button onClick={() => changeQty(-1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty <= 1}>-</button>
+                <button onClick={() => changeQty(-1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty <= 1 || isProcessing}>-</button>
                 <span className="font-bold text-xl w-12 text-center text-white">{qty}</span>
-                <button onClick={() => changeQty(1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty >= maxStock}>+</button>
+                <button onClick={() => changeQty(1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty >= maxStock || isProcessing}>+</button>
              </div>
           </div>
           <div className="flex justify-between items-center mb-6 py-3 border-t border-b border-white/10">
              <span className="text-gray-400 text-sm">Tổng thanh toán:</span>
              <span className="text-emerald-400 font-bold text-2xl">{formatVND(totalPrice)}</span>
           </div>
-          <button onClick={() => onConfirm(product, qty, totalPrice)} className="w-full py-3.5 rounded-xl bg-violet-600 text-white font-bold hover:bg-violet-500 shadow-lg shadow-violet-900/30 transition transform active:scale-95">XÁC NHẬN MUA NGAY</button>
+          <button 
+            onClick={handleBuy} 
+            disabled={isProcessing}
+            className="w-full py-3.5 rounded-xl bg-violet-600 text-white font-bold hover:bg-violet-500 shadow-lg shadow-violet-900/30 transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+          >
+            {isProcessing ? <><Loader2 className="animate-spin" size={20}/> ĐANG XỬ LÝ...</> : 'XÁC NHẬN MUA NGAY'}
+          </button>
        </div>
     </div>
   );
@@ -272,6 +286,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   const [depositAmount, setDepositAmount] = useState('');
   const [transCode, setTransCode] = useState('');
   const [timeLeft, setTimeLeft] = useState(600);
+  const [isDepositing, setIsDepositing] = useState(false); // Trạng thái nạp
 
   useEffect(() => {
     // 1. Get Products
@@ -279,8 +294,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       setProducts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     
-    // 2. Get Bank Config (Path mới và chính xác)
-    // Dữ liệu ngân hàng được lưu tại: artifacts -> shop-9d1ae -> public -> data -> settings -> bank
+    // 2. Get Bank Config
     const bankDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank');
     const unsubBank = onSnapshot(bankDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -312,17 +326,17 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   }, [depositStep, timeLeft]);
 
   const handleConfirmBuy = async (prod, qty, total) => {
-    setSelectedProduct(null); 
-    if (!user) return showToast("Vui lòng đăng nhập!", "error");
-    if ((userData?.balance || 0) < total) return showToast("Số dư không đủ!", "error");
+    // setSelectedProduct(null); // Không đóng ngay để hiện loading
+    if (!user) { setSelectedProduct(null); return showToast("Vui lòng đăng nhập!", "error"); }
+    if ((userData?.balance || 0) < total) { setSelectedProduct(null); return showToast("Số dư không đủ!", "error"); }
 
     try {
       const prodRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', prod.id);
       const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) return showToast("Hết hàng!", "error");
+      if (!prodSnap.exists()) { setSelectedProduct(null); return showToast("Hết hàng!", "error"); }
       
       const currentStock = prodSnap.data().stock || [];
-      if (currentStock.length < qty) return showToast("Không đủ số lượng trong kho!", "error");
+      if (currentStock.length < qty) { setSelectedProduct(null); return showToast("Không đủ số lượng trong kho!", "error"); }
 
       const itemsToBuy = currentStock.slice(0, qty);
       const remainingStock = currentStock.slice(qty);
@@ -334,14 +348,17 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       await updateDoc(prodRef, { stock: remainingStock });
       
       alert(`🎉 MUA THÀNH CÔNG!\n(Đã lưu vào Lịch sử mua hàng)`);
+      setSelectedProduct(null);
       setShowHistory(true);
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) { 
+      setSelectedProduct(null);
+      showToast(e.message, "error"); 
+    }
   };
 
   const startDeposit = () => {
-    // 🔴 KIỂM TRA QUAN TRỌNG: CÓ BANK HOẶC QR THÌ MỚI CHO NẠP
     if (!bankConfig || (!bankConfig.QR_IMAGE && !bankConfig.ACCOUNT_NO)) {
-      return showToast("⚠️ Hệ thống nạp đang bảo trì (Chưa có STK). Vui lòng quay lại sau!", "error");
+      return showToast("⚠️ Hệ thống nạp đang bảo trì. Vui lòng quay lại sau!", "error");
     }
 
     if (!depositAmount || depositAmount < 10000) return showToast("Tối thiểu 10,000đ", "error");
@@ -354,13 +371,20 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   };
 
   const confirmDeposit = async () => {
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), {
-      userId: user.uid, userEmail: user.email, amount: Number(depositAmount), 
-      note: transCode, status: 'pending', createdAt: new Date().toISOString()
-    });
-    showToast("Đã gửi yêu cầu! Admin sẽ duyệt ngay.", "success");
-    setDepositStep(1);
-    setDepositAmount('');
+    setIsDepositing(true);
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), {
+        userId: user.uid, userEmail: user.email, amount: Number(depositAmount), 
+        note: transCode, status: 'pending', createdAt: new Date().toISOString()
+      });
+      showToast("Đã gửi yêu cầu! Admin sẽ duyệt ngay.", "success");
+      setDepositStep(1);
+      setDepositAmount('');
+    } catch (e) {
+      showToast("Lỗi gửi yêu cầu: " + e.message, "error");
+    } finally {
+      setIsDepositing(false);
+    }
   };
 
   const formatTime = (seconds) => {
@@ -443,7 +467,12 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                         <p className="text-xs text-gray-500 line-clamp-1">{p.desc || 'Tài khoản chất lượng cao'}</p>
                         <div className="mt-auto pt-4 flex justify-between items-center border-t border-white/5">
                           <span className="text-emerald-400 font-bold font-mono">{formatVND(p.price)}</span>
-                          <button onClick={() => stockCount > 0 ? setSelectedProduct(p) : showToast('Hết hàng!', 'error')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${stockCount > 0 ? 'bg-white text-black hover:bg-violet-500 hover:text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>{stockCount > 0 ? 'MUA' : 'HẾT HÀNG'}</button>
+                          <button 
+                            onClick={() => stockCount > 0 ? setSelectedProduct(p) : showToast('Hết hàng!', 'error')} 
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${stockCount > 0 ? 'bg-white text-black hover:bg-violet-500 hover:text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                          >
+                            {stockCount > 0 ? 'MUA' : 'HẾT HÀNG'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -474,7 +503,6 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                     )}
                  </div>
                  <div className="bg-[#09090b] border border-white/10 p-4 rounded-xl mb-4 text-left space-y-3">
-                    {/* Chỉ hiện thông tin nếu Admin đã nhập */}
                     {bankConfig.BANK_ID && <div className="flex justify-between"><span className="text-gray-500 text-xs">Ngân hàng:</span><span className="text-white font-bold">{bankConfig.BANK_ID}</span></div>}
                     {bankConfig.ACCOUNT_NO && <div className="flex justify-between"><span className="text-gray-500 text-xs">Số TK:</span><span className="text-white font-bold">{bankConfig.ACCOUNT_NO}</span></div>}
                     {bankConfig.ACCOUNT_NAME && <div className="flex justify-between"><span className="text-gray-500 text-xs">Chủ TK:</span><span className="text-white font-bold">{bankConfig.ACCOUNT_NAME}</span></div>}
@@ -483,7 +511,13 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                     <div className="flex justify-between"><span className="text-gray-500 text-xs">Số tiền:</span><span className="text-emerald-400 font-bold">{formatVND(depositAmount)}</span></div>
                     <div className="flex justify-between items-center"><span className="text-gray-500 text-xs">Nội dung (Bắt buộc):</span><div className="flex gap-2 items-center"><span className="text-yellow-400 font-bold font-mono text-sm break-all">{transCode}</span><button onClick={() => { navigator.clipboard.writeText(transCode); showToast("Đã copy mã!", "success"); }} className="p-1 hover:text-white text-gray-500"><Copy size={14}/></button></div></div>
                  </div>
-                 <button onClick={confirmDeposit} className="bg-emerald-600 w-full py-3 rounded-xl font-bold text-white hover:bg-emerald-500 mb-2 transition">ĐÃ CHUYỂN KHOẢN XONG</button>
+                 <button 
+                   onClick={confirmDeposit} 
+                   disabled={isDepositing}
+                   className="bg-emerald-600 w-full py-3 rounded-xl font-bold text-white hover:bg-emerald-500 mb-2 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   {isDepositing ? <><Loader2 className="animate-spin" size={18}/> ĐANG XỬ LÝ...</> : 'ĐÃ CHUYỂN KHOẢN XONG'}
+                 </button>
                  <p className="text-[10px] text-gray-500">Hệ thống sẽ tự động cộng tiền ngay khi Admin duyệt.</p>
                </div>
              )}
@@ -503,14 +537,16 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const [deposits, setDeposits] = useState([]);
   const [newProd, setNewProd] = useState({ title: '', price: '', tag: 'VIP', desc: '', dataTextarea: '', image: '' });
   
-  // STATE BANK CONFIG (Mặc định rỗng để không bị lỗi undefined)
   const [bankSettings, setBankSettings] = useState(DEFAULT_BANK);
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [isAddingProd, setIsAddingProd] = useState(false);
+  const [processingId, setProcessingId] = useState(null); // ID đơn đang xử lý
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), s => setProducts(s.docs.map(d => ({id:d.id, ...d.data()}))));
     const u2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), s => setDeposits(s.docs.map(d => ({id:d.id, ...d.data()}))));
     
-    // Load config an toàn (Dùng doc reference đúng)
+    // Load config path đúng
     const bankDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank');
     getDoc(bankDocRef).then(snap => {
       if(snap.exists()) setBankSettings(snap.data());
@@ -521,13 +557,14 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
 
   const handleUpdateBank = async (e) => {
     e.preventDefault();
+    setIsSavingBank(true);
     try {
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank'), bankSettings);
       showToast("Cập nhật ngân hàng thành công!", "success");
     } catch (e) { showToast("Lỗi lưu cấu hình", "error"); }
+    finally { setIsSavingBank(false); }
   };
 
-  // Upload ảnh QR (Chuyển sang Base64)
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -545,6 +582,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
     const stockList = newProd.dataTextarea.split('\n').filter(line => line.trim() !== '');
     if (stockList.length === 0) return showToast("Vui lòng nhập ít nhất 1 tài khoản!", "error");
 
+    setIsAddingProd(true);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), { 
         ...newProd, stock: stockList, price: Number(newProd.price) 
@@ -552,9 +590,12 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       showToast(`Đã thêm ${stockList.length} tài khoản vào kho!`, "success");
       setNewProd({ title: '', price: '', tag: 'VIP', desc: '', dataTextarea: '', image: '' });
     } catch (e) { showToast(e.message, "error"); }
+    finally { setIsAddingProd(false); }
   };
 
   const handleApprove = async (d) => {
+    if (processingId) return; // Chặn nếu đang xử lý cái khác
+    setProcessingId(d.id);
     try {
       const uRef = doc(db, 'artifacts', appId, 'users', d.userId);
       const snap = await getDoc(uRef);
@@ -562,6 +603,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), { status: 'approved' });
       showToast("Đã duyệt! Tiền về ví khách ngay lập tức.", "success");
     } catch (e) { showToast(e.message, "error"); }
+    finally { setProcessingId(null); }
   };
 
   return (
@@ -576,7 +618,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
         {/* CỘT 1: CẤU HÌNH NGÂN HÀNG + ĐĂNG BÁN */}
         <div className="space-y-6">
            
-           {/* FORM CẤU HÌNH BANK */}
+           {/* BANK CONFIG FORM */}
            <div className="bg-[#111] border border-blue-900/50 p-5 rounded-lg shadow-lg">
               <h3 className="text-blue-400 font-bold mb-4 text-sm flex gap-2 items-center"><Settings size={16}/> CẤU HÌNH NGÂN HÀNG</h3>
               <form onSubmit={handleUpdateBank} className="space-y-3">
@@ -592,7 +634,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                        value={bankSettings.ACCOUNT_NO} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NO: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
                    <div>
-                     <label className="text-[10px] text-gray-500 uppercase">Chủ TK</label>
+                     <label className="text-[10px] text-gray-500 uppercase">Tên Chủ TK</label>
                      <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
                        value={bankSettings.ACCOUNT_NAME} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NAME: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
@@ -605,7 +647,9 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                   {bankSettings.QR_IMAGE && <p className="text-[10px] text-emerald-500 mt-1">✓ Đã có ảnh QR</p>}
                 </div>
 
-                <button className="w-full bg-blue-700 hover:bg-blue-600 text-white py-2 font-bold rounded text-xs">LƯU CẤU HÌNH</button>
+                <button disabled={isSavingBank} className="w-full bg-blue-700 hover:bg-blue-600 text-white py-2 font-bold rounded text-xs disabled:opacity-50 flex justify-center items-center gap-2">
+                  {isSavingBank ? <><Loader2 className="animate-spin" size={14}/> ĐANG LƯU...</> : 'LƯU CẤU HÌNH'}
+                </button>
               </form>
            </div>
 
@@ -623,7 +667,9 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                   <textarea className="w-full bg-black border border-rose-900 p-2 text-emerald-400 h-24 outline-none focus:border-rose-500 font-mono text-xs whitespace-pre" placeholder={`user1|pass1\nuser2|pass2`} value={newProd.dataTextarea} onChange={e=>setNewProd({...newProd, dataTextarea:e.target.value})} required/>
                   <p className="text-[10px] text-gray-500 mt-1">Hệ thống sẽ tự đếm số dòng.</p>
                 </div>
-                <button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white py-2 font-bold mt-2 rounded">ĐĂNG BÁN NGAY</button>
+                <button disabled={isAddingProd} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white py-2 font-bold mt-2 rounded disabled:opacity-50 flex justify-center items-center gap-2">
+                  {isAddingProd ? <><Loader2 className="animate-spin" size={14}/> ĐANG ĐĂNG...</> : 'ĐĂNG BÁN NGAY'}
+                </button>
               </form>
            </div>
         </div>
@@ -641,7 +687,13 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                        <div className="text-xs text-gray-500">{d.amount.toLocaleString()} đ</div>
                      </div>
                      <div className="flex gap-2">
-                        <button onClick={()=>handleApprove(d)} className="text-emerald-500 font-bold border border-emerald-500 px-2 py-1 text-xs hover:bg-emerald-500 hover:text-black transition">DUYỆT</button>
+                        <button 
+                          onClick={()=>handleApprove(d)} 
+                          disabled={processingId === d.id}
+                          className="text-emerald-500 font-bold border border-emerald-500 px-2 py-1 text-xs hover:bg-emerald-500 hover:text-black transition disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {processingId === d.id ? <Loader2 className="animate-spin" size={12}/> : 'DUYỆT'}
+                        </button>
                         <button onClick={()=>updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), {status:'rejected'})} className="text-rose-500 font-bold border border-rose-500 px-2 py-1 text-xs">HỦY</button>
                      </div>
                   </div>
