@@ -31,7 +31,7 @@ import {
   Lock, Terminal, Image as ImageIcon, CreditCard,
   AlertTriangle, ArrowRight, Tag, Database, Menu, 
   History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, 
-  Eye, EyeOff, Clipboard
+  Eye, EyeOff, Package, Globe, Box
 } from 'lucide-react';
 
 // ==========================================
@@ -59,19 +59,96 @@ try {
 const appId = 'shop-9d1ae'; 
 const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
-// --- TIỆN ÍCH ---
-const AUTO_IMAGES = {
-  netflix: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=600&q=80',
-  spotify: 'https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=600&q=80',
-  youtube: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&q=80',
-  steam: 'https://images.unsplash.com/photo-1612287230217-969e090e8f77?w=600&q=80',
-  default: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&q=80'
+// ==========================================
+// 2. KHO LOGO GOOGLE (SIÊU BỀN)
+// ==========================================
+// Hàm lấy ảnh từ Google Server dựa trên tên miền
+const getGoogleLogo = (domain) => `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${domain}&size=128`;
+
+const DOMAIN_MAP = {
+  // Giải trí
+  'netflix': 'netflix.com',
+  'youtube': 'youtube.com',
+  'spotify': 'spotify.com',
+  'facebook': 'facebook.com',
+  'tiktok': 'tiktok.com',
+  'disney': 'disneyplus.com',
+  
+  // Công việc
+  'adobe': 'adobe.com',
+  'canva': 'canva.com',
+  'office': 'office.com',
+  'microsoft': 'microsoft.com',
+  'windows': 'microsoft.com',
+  'zoom': 'zoom.us',
+  
+  // AI
+  'chatgpt': 'openai.com',
+  'openai': 'openai.com',
+  'gemini': 'deepmind.google',
+  'bard': 'bard.google.com',
+  'blackbox': 'blackbox.ai',
+  'copilot': 'github.com',
+  'midjourney': 'midjourney.com',
+  
+  // Game & App
+  'ugphone': 'ugphone.com',
+  'steam': 'steampowered.com',
+  'roblox': 'roblox.com',
+  'valorant': 'playvalorant.com',
+  'vpn': 'nordvpn.com',
+  '1.1.1.1': 'cloudflare.com'
 };
-const getSmartImage = (title) => {
-  const lower = (title || "").toLowerCase();
-  for (const [key, url] of Object.entries(AUTO_IMAGES)) if (lower.includes(key)) return url;
-  return AUTO_IMAGES.default;
+
+// Component hiển thị ảnh thông minh (Tự fallback nếu lỗi)
+const SmartLogo = ({ title, manualUrl, className }) => {
+  const [src, setSrc] = useState('');
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setError(false);
+    if (manualUrl && manualUrl.length > 5) {
+      setSrc(manualUrl);
+      return;
+    }
+
+    const lower = (title || "").toLowerCase();
+    let foundDomain = null;
+
+    // Tìm domain tương ứng với tên sản phẩm
+    for (const [key, domain] of Object.entries(DOMAIN_MAP)) {
+      if (lower.includes(key)) {
+        foundDomain = domain;
+        break;
+      }
+    }
+
+    if (foundDomain) {
+      setSrc(getGoogleLogo(foundDomain));
+    } else {
+      // Nếu không tìm thấy, dùng ảnh mặc định an toàn
+      setError(true); 
+    }
+  }, [title, manualUrl]);
+
+  if (error || !src) {
+    return (
+      <div className={`${className} bg-violet-900/20 flex items-center justify-center text-violet-400`}>
+        <Box size="50%" />
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={src} 
+      alt={title} 
+      className={className} 
+      onError={() => setError(true)}
+    />
+  );
 };
+
 const formatVND = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
 
 const Toast = ({ message, type, onClose }) => {
@@ -85,12 +162,11 @@ const Toast = ({ message, type, onClose }) => {
   );
 };
 
-// --- COMPONENT HIỂN THỊ 1 DÒNG TÀI KHOẢN (MỚI) ---
+// --- ACCOUNT ROW (COPY RIÊNG BIỆT) ---
 const AccountRow = ({ accLine }) => {
   const [showPass, setShowPass] = useState(false);
-  const [copied, setCopied] = useState(null); // 'user' or 'pass'
+  const [copied, setCopied] = useState(null);
 
-  // Tách User|Pass
   const parts = accLine.includes('|') ? accLine.split('|') : [accLine, ''];
   const username = parts[0].trim();
   const password = parts.slice(1).join('|').trim();
@@ -102,27 +178,24 @@ const AccountRow = ({ accLine }) => {
   };
 
   return (
-    <div className="bg-[#18181b] p-3 rounded border border-white/5 space-y-2">
-      {/* Hàng Tài Khoản */}
-      <div className="flex justify-between items-center bg-black/30 p-2 rounded">
+    <div className="bg-[#18181b] p-3 rounded-lg border border-white/5 space-y-2 hover:border-violet-500/30 transition">
+      <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
         <div className="flex-1 min-w-0 mr-2">
-          <p className="text-[10px] text-gray-500 uppercase font-bold">Tài khoản</p>
+          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1"><User size={10}/> Tài khoản</p>
           <p className="text-sm text-white font-mono truncate select-all">{username}</p>
         </div>
         <button 
           onClick={() => handleCopy(username, 'user')}
-          className={`p-1.5 rounded transition ${copied === 'user' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:text-white'}`}
-          title="Copy Tài khoản"
+          className={`p-2 rounded-md transition ${copied === 'user' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
         >
           {copied === 'user' ? <CheckCircle size={16}/> : <Copy size={16}/>}
         </button>
       </div>
 
-      {/* Hàng Mật Khẩu (Nếu có) */}
       {password && (
-        <div className="flex justify-between items-center bg-black/30 p-2 rounded">
+        <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
           <div className="flex-1 min-w-0 mr-2">
-            <p className="text-[10px] text-gray-500 uppercase font-bold">Mật khẩu</p>
+            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1"><Lock size={10}/> Mật khẩu</p>
             <div className="flex items-center gap-2">
                <p className="text-sm text-yellow-400 font-mono truncate select-all">
                  {showPass ? password : '••••••••••••'}
@@ -134,8 +207,7 @@ const AccountRow = ({ accLine }) => {
           </div>
           <button 
             onClick={() => handleCopy(password, 'pass')}
-            className={`p-1.5 rounded transition ${copied === 'pass' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:text-white'}`}
-            title="Copy Mật khẩu"
+            className={`p-2 rounded-md transition ${copied === 'pass' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
           >
             {copied === 'pass' ? <CheckCircle size={16}/> : <Copy size={16}/>}
           </button>
@@ -145,26 +217,26 @@ const AccountRow = ({ accLine }) => {
   );
 };
 
-// --- COMPONENT CHI TIẾT ĐƠN HÀNG (Item Lịch sử) ---
 const HistoryItem = ({ item }) => {
   const [isOpen, setIsOpen] = useState(false);
   const accounts = Array.isArray(item.data) ? item.data : [item.data];
 
   return (
-    <div className="bg-black/50 border border-white/5 rounded-xl overflow-hidden transition hover:border-violet-500/30">
+    <div className="bg-black/50 border border-white/5 rounded-xl overflow-hidden transition hover:border-violet-500/50">
       <div 
         className="p-4 flex justify-between items-center cursor-pointer bg-[#121214] hover:bg-[#1a1a1d]"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="bg-violet-500/10 p-2 rounded-lg text-violet-400"><Package size={20}/></div>
+          <div>
              <h4 className="font-bold text-white text-sm">{item.title}</h4>
-             <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-               x{accounts.length}
-             </span>
+             <div className="flex gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
+               <span>#{item.id.slice(0, 6).toUpperCase()}</span>
+               <span>•</span>
+               <span>{new Date(item.purchasedAt).toLocaleDateString()}</span>
+             </div>
           </div>
-          <div className="text-[10px] text-gray-500 font-mono mt-1">Mã đơn: #{item.id.slice(0, 8).toUpperCase()}</div>
-          <div className="text-[10px] text-gray-500">{new Date(item.purchasedAt).toLocaleString()}</div>
         </div>
         <div className="text-right">
            <div className="text-emerald-400 font-bold text-sm">{formatVND(item.totalPrice || item.price)}</div>
@@ -173,7 +245,7 @@ const HistoryItem = ({ item }) => {
       </div>
 
       {isOpen && (
-        <div className="p-4 bg-[#09090b] border-t border-white/10 space-y-3">
+        <div className="p-4 bg-[#09090b] border-t border-white/10 space-y-3 animate-fade-in">
           {accounts.map((accLine, idx) => (
             <AccountRow key={idx} accLine={accLine} />
           ))}
@@ -183,7 +255,6 @@ const HistoryItem = ({ item }) => {
   );
 };
 
-// --- COMPONENT LỊCH SỬ ---
 const HistoryModal = ({ user, onClose }) => {
   const [history, setHistory] = useState([]);
   
@@ -205,12 +276,17 @@ const HistoryModal = ({ user, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
       <div className="bg-[#121214] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
-        <div className="p-4 border-b border-white/10 flex justify-between bg-[#09090b]">
-          <h3 className="font-bold flex gap-2 text-violet-400"><History/> LỊCH SỬ (Xóa sau 30 ngày)</h3>
-          <button onClick={onClose}><X/></button>
+        <div className="p-4 border-b border-white/10 flex justify-between bg-[#09090b] items-center">
+          <h3 className="font-bold flex gap-2 text-violet-400 items-center"><History size={20}/> LỊCH SỬ GIAO DỊCH</h3>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X/></button>
         </div>
-        <div className="p-4 overflow-y-auto custom-scrollbar space-y-3">
-          {history.length === 0 && <p className="text-center text-gray-500 py-10">Chưa có đơn hàng nào.</p>}
+        <div className="p-4 overflow-y-auto custom-scrollbar space-y-3 bg-[#0c0c0e]">
+          {history.length === 0 && (
+            <div className="text-center py-12 text-gray-500 flex flex-col items-center">
+              <ShoppingCart size={48} className="opacity-20 mb-3"/>
+              <p>Chưa có đơn hàng nào.</p>
+            </div>
+          )}
           {history.map(item => <HistoryItem key={item.id} item={item} />)}
         </div>
       </div>
@@ -218,7 +294,6 @@ const HistoryModal = ({ user, onClose }) => {
   );
 };
 
-// --- MODAL MUA HÀNG (SỐ LƯỢNG) ---
 const BuyModal = ({ product, user, balance, onClose, onConfirm }) => {
   const [qty, setQty] = useState(1);
   const maxStock = product.stock ? product.stock.length : 0;
@@ -234,42 +309,49 @@ const BuyModal = ({ product, user, balance, onClose, onConfirm }) => {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-       <div className="bg-[#18181b] border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-          <h3 className="text-xl font-bold text-white mb-1">{product.title}</h3>
-          <p className="text-xs text-gray-500 mb-4">Đơn giá: {formatVND(product.price)}</p>
+       <div className="bg-[#18181b] border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative">
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
           
-          <div className="mb-6">
-             <label className="text-sm text-gray-400 mb-2 block">Số lượng mua (Còn {maxStock}):</label>
-             <div className="flex items-center justify-between bg-black rounded-lg border border-gray-700 p-2">
-                <button onClick={() => changeQty(-1)} className="p-2 hover:bg-white/10 rounded text-white disabled:opacity-30" disabled={qty <= 1}>-</button>
-                <span className="font-bold text-xl w-10 text-center">{qty}</span>
-                <button onClick={() => changeQty(1)} className="p-2 hover:bg-white/10 rounded text-white disabled:opacity-30" disabled={qty >= maxStock}>+</button>
+          <div className="flex gap-4 mb-6">
+             <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 p-2">
+                <SmartLogo title={product.title} manualUrl={product.image} className="w-full h-full object-contain" />
+             </div>
+             <div>
+                <h3 className="text-lg font-bold text-white line-clamp-2">{product.title}</h3>
+                <p className="text-emerald-400 font-mono text-sm">{formatVND(product.price)} / 1 acc</p>
+             </div>
+          </div>
+          
+          <div className="bg-black/40 p-4 rounded-xl mb-6 border border-white/5">
+             <div className="flex justify-between mb-2 text-sm text-gray-400">
+                <span>Số lượng (Còn {maxStock}):</span>
+             </div>
+             <div className="flex items-center justify-between bg-[#09090b] rounded-lg border border-gray-700 p-1">
+                <button onClick={() => changeQty(-1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty <= 1}>-</button>
+                <span className="font-bold text-xl w-12 text-center text-white">{qty}</span>
+                <button onClick={() => changeQty(1)} className="w-10 h-10 hover:bg-white/10 rounded-md text-white font-bold disabled:opacity-30 flex items-center justify-center" disabled={qty >= maxStock}>+</button>
              </div>
           </div>
 
           <div className="flex justify-between items-center mb-6 py-3 border-t border-b border-white/10">
-             <span className="text-gray-400">Tổng thanh toán:</span>
-             <span className="text-emerald-400 font-bold text-xl">{formatVND(totalPrice)}</span>
+             <span className="text-gray-400 text-sm">Tổng thanh toán:</span>
+             <span className="text-emerald-400 font-bold text-2xl">{formatVND(totalPrice)}</span>
           </div>
 
-          <div className="flex gap-3">
-             <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-300 font-bold hover:bg-gray-700">Hủy</button>
-             <button onClick={() => onConfirm(product, qty, totalPrice)} className="flex-1 py-3 rounded-xl bg-violet-600 text-white font-bold hover:bg-violet-500 shadow-lg shadow-violet-900/30">Xác Nhận Mua</button>
-          </div>
+          <button onClick={() => onConfirm(product, qty, totalPrice)} className="w-full py-3.5 rounded-xl bg-violet-600 text-white font-bold hover:bg-violet-500 shadow-lg shadow-violet-900/30 transition transform active:scale-95">XÁC NHẬN MUA NGAY</button>
        </div>
     </div>
   );
 };
 
-// --- GIAO DIỆN KHÁCH HÀNG ---
 const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => {
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null); 
+  const menuRef = useRef(null);
   
-  // STATE NẠP TIỀN
   const [depositStep, setDepositStep] = useState(1);
   const [depositAmount, setDepositAmount] = useState('');
   const [transCode, setTransCode] = useState('');
@@ -279,7 +361,14 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
     const unsub = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'products')), (snapshot) => {
       setProducts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    return () => unsub();
+    const handleClickOutside = (event) => {
+        if (menuRef.current && !menuRef.current.contains(event.target)) setShowMenu(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+        unsub();
+        document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -293,7 +382,6 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
     return () => clearInterval(timer);
   }, [depositStep, timeLeft]);
 
-  // Xử lý mua hàng
   const handleConfirmBuy = async (prod, qty, total) => {
     setSelectedProduct(null); 
     if (!user) return showToast("Vui lòng đăng nhập!", "error");
@@ -367,33 +455,45 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
 
       <nav className="sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur border-b border-white/10 p-4">
         <div className="container mx-auto flex justify-between items-center">
-          <div className="font-bold text-xl text-violet-500 flex gap-2 cursor-pointer" onClick={() => setActiveTab('home')}>
+          <div className="font-bold text-xl text-violet-500 flex gap-2 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
             <Gamepad2/> CYBERSHOP
           </div>
           
           <div className="flex items-center gap-4">
             {user ? (
               <>
-                <div onClick={() => setActiveTab('deposit')} className="cursor-pointer hidden md:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 hover:border-emerald-500 transition">
-                  <span className="text-emerald-400 font-bold text-sm">{formatVND(userData?.balance || 0)}</span>
+                <div onClick={() => setActiveTab('deposit')} className="cursor-pointer hidden md:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 hover:border-emerald-500 transition group">
+                  <span className="text-emerald-400 font-bold text-sm group-hover:scale-105 transition">{formatVND(userData?.balance || 0)}</span>
                   <Plus size={14} className="text-gray-500"/>
                 </div>
-                <div className="relative">
-                  <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-white/10 rounded"><Menu size={24}/></button>
+                <div className="relative" ref={menuRef}>
+                  <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-white/10 rounded transition"><Menu size={24}/></button>
                   {showMenu && (
-                    <div className="absolute right-0 top-12 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+                    <div className="absolute right-0 top-12 w-64 bg-[#121214] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
                       <div className="p-4 bg-[#09090b] border-b border-white/5">
-                        <p className="text-sm font-bold truncate">{user.email}</p>
-                        <p className="text-xs text-emerald-400 font-mono">{formatVND(userData?.balance || 0)}</p>
+                        <p className="text-sm font-bold truncate text-white">{user.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                           <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                           <p className="text-xs text-emerald-400 font-mono">{formatVND(userData?.balance || 0)}</p>
+                        </div>
                       </div>
-                      <button onClick={() => { setActiveTab('deposit'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex gap-2"><Wallet size={16}/> Nạp tiền</button>
-                      <button onClick={() => { setShowHistory(true); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 flex gap-2"><History size={16}/> Lịch sử mua</button>
-                      <button onClick={onLogout} className="w-full text-left px-4 py-3 text-sm text-rose-500 hover:bg-white/5 flex gap-2"><LogOut size={16}/> Đăng xuất</button>
+                      <div className="p-2 space-y-1">
+                        <button onClick={() => { setActiveTab('deposit'); setShowMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white rounded-lg flex items-center gap-3 transition">
+                          <Wallet size={16} className="text-emerald-500"/> Nạp tiền
+                        </button>
+                        <button onClick={() => { setShowHistory(true); setShowMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white rounded-lg flex items-center gap-3 transition">
+                          <History size={16} className="text-blue-500"/> Lịch sử mua hàng
+                        </button>
+                        <div className="h-px bg-white/5 my-1"></div>
+                        <button onClick={onLogout} className="w-full text-left px-3 py-2.5 text-sm text-rose-500 hover:bg-rose-500/10 rounded-lg flex items-center gap-3 transition">
+                          <LogOut size={16}/> Đăng xuất
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               </>
-            ) : <button onClick={onLogin} className="bg-white text-black px-4 py-1.5 rounded-lg font-bold text-sm">Đăng Nhập</button>}
+            ) : <button onClick={onLogin} className="bg-white text-black px-4 py-1.5 rounded-lg font-bold text-sm hover:scale-105 transition">Đăng Nhập</button>}
           </div>
         </div>
       </nav>
@@ -401,34 +501,46 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       <main className="container mx-auto p-4 space-y-8">
         {activeTab === 'home' ? (
           <>
-            <div className="bg-gradient-to-r from-violet-900 to-black p-8 rounded-2xl border border-white/10 relative overflow-hidden">
-               <h2 className="text-3xl font-black mb-2 relative z-10">KHO TÀI KHOẢN TỰ ĐỘNG</h2>
-               <p className="text-gray-400 mb-4 relative z-10">Hệ thống xử lý đơn hàng trong 1 giây.</p>
-               <div className="absolute right-0 top-0 opacity-20"><Zap size={150}/></div>
+            <div className="bg-gradient-to-r from-violet-900 via-[#0a0a0a] to-black p-8 rounded-2xl border border-white/10 relative overflow-hidden group">
+               <h2 className="text-3xl md:text-5xl font-black mb-2 relative z-10 text-white">KHO TÀI KHOẢN <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">TỰ ĐỘNG 24/7</span></h2>
+               <p className="text-gray-400 mb-4 relative z-10 max-w-lg">Uy tín số 1 Việt Nam. Bảo hành trọn đời.</p>
+               <div className="absolute right-0 top-0 opacity-20 group-hover:scale-110 transition duration-1000"><Zap size={200}/></div>
             </div>
 
             <div>
-              <h2 className="text-xl font-bold mb-4 text-emerald-400 flex items-center gap-2"><Tag/> SẢN PHẨM MỚI NHẤT</h2>
+              <div className="flex items-center gap-2 mb-6">
+                 <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
+                 <h2 className="text-xl font-bold text-white">SẢN PHẨM MỚI NHẤT</h2>
+              </div>
+              
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {products.length === 0 && (
+                   <div className="col-span-full text-center py-12 border border-dashed border-gray-800 rounded-xl">
+                      <Search size={32} className="mx-auto mb-2 opacity-30"/>
+                      <p className="text-gray-500">Kho hàng đang được cập nhật...</p>
+                   </div>
+                )}
                 {products.map(p => {
                   const stockCount = p.stock ? p.stock.length : 0;
                   return (
-                    <div key={p.id} className="bg-[#121214] border border-white/10 rounded-xl overflow-hidden hover:border-violet-500 transition group">
-                      <div className="h-40 relative">
-                        <img src={getSmartImage(p.title)} className="w-full h-full object-cover group-hover:scale-110 transition duration-700"/>
-                        <span className="absolute bottom-2 right-2 bg-emerald-500 text-black text-[10px] font-bold px-2 py-0.5 rounded">
-                           KHO: {stockCount}
+                    <div key={p.id} className="bg-[#121214] border border-white/10 rounded-xl overflow-hidden hover:border-violet-500 transition group hover:-translate-y-1 shadow-lg flex flex-col">
+                      <div className="h-40 relative bg-white/5 flex items-center justify-center p-4">
+                        <SmartLogo title={p.title} manualUrl={p.image} className="w-full h-full object-contain drop-shadow-2xl" />
+                        <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10">
+                           KHO: <span className={stockCount > 0 ? "text-emerald-400" : "text-rose-500"}>{stockCount}</span>
                         </span>
+                        {p.tag && <span className="absolute top-2 left-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">{p.tag}</span>}
                       </div>
-                      <div className="p-4">
-                        <h3 className="font-bold truncate text-white">{p.title}</h3>
-                        <div className="flex justify-between items-center mt-3">
-                          <span className="text-emerald-400 font-bold">{formatVND(p.price)}</span>
+                      <div className="p-4 flex flex-col flex-1">
+                        <h3 className="font-bold truncate text-white mb-1" title={p.title}>{p.title}</h3>
+                        <p className="text-xs text-gray-500 line-clamp-1">{p.desc || 'Tài khoản chất lượng cao'}</p>
+                        <div className="mt-auto pt-4 flex justify-between items-center border-t border-white/5">
+                          <span className="text-emerald-400 font-bold font-mono">{formatVND(p.price)}</span>
                           <button 
                             onClick={() => stockCount > 0 ? setSelectedProduct(p) : showToast('Hết hàng!', 'error')} 
-                            className={`px-3 py-1 rounded text-xs font-bold transition ${stockCount > 0 ? 'bg-white text-black hover:bg-violet-500 hover:text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${stockCount > 0 ? 'bg-white text-black hover:bg-violet-500 hover:text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
                           >
-                            {stockCount > 0 ? 'MUA' : 'HẾT'}
+                            {stockCount > 0 ? 'MUA' : 'HẾT HÀNG'}
                           </button>
                         </div>
                       </div>
@@ -439,18 +551,18 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
             </div>
           </>
         ) : (
-          <div className="max-w-md mx-auto bg-[#121214] border border-white/10 rounded-2xl p-6 shadow-2xl">
+          <div className="max-w-md mx-auto bg-[#121214] border border-white/10 rounded-2xl p-6 shadow-2xl animate-fade-in">
              <button onClick={() => { setActiveTab('home'); setDepositStep(1); }} className="mb-4 text-xs text-gray-500 hover:text-white flex items-center gap-1">← Hủy bỏ</button>
              {depositStep === 1 ? (
                <>
                  <h2 className="text-xl font-bold mb-6 text-center text-emerald-400">NHẬP SỐ TIỀN CẦN NẠP</h2>
-                 <input type="number" className="bg-black border border-gray-700 p-4 text-white rounded-xl w-full text-2xl font-bold text-center outline-none focus:border-emerald-500 mb-4" placeholder="0" value={depositAmount} onChange={e=>setDepositAmount(e.target.value)}/>
-                 <button onClick={startDeposit} className="bg-emerald-600 w-full py-4 rounded-xl font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">TIẾP TỤC →</button>
+                 <input type="number" className="bg-black border border-gray-700 p-4 text-white rounded-xl w-full text-2xl font-bold text-center outline-none focus:border-emerald-500 mb-4 transition" placeholder="0" value={depositAmount} onChange={e=>setDepositAmount(e.target.value)}/>
+                 <button onClick={startDeposit} className="bg-emerald-600 w-full py-4 rounded-xl font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20 transition">TIẾP TỤC →</button>
                </>
              ) : (
                <div className="text-center animate-fade-in">
                  <h2 className="text-xl font-bold mb-2 text-white">QUÉT MÃ QR ĐỂ THANH TOÁN</h2>
-                 <p className="text-xs text-rose-400 mb-4 flex justify-center gap-1 items-center"><Clock size={12}/> Hết hạn sau: {formatTime(timeLeft)}</p>
+                 <p className="text-xs text-rose-400 mb-4 flex justify-center gap-1 items-center bg-rose-500/10 py-1 rounded border border-rose-500/20"><Clock size={12}/> Hết hạn sau: {formatTime(timeLeft)}</p>
                  <div className="bg-white p-4 rounded-xl mb-4 inline-block shadow-xl">
                     <img src={`https://img.vietqr.io/image/MB-999988886666-compact.png?amount=${depositAmount}&addInfo=${transCode}`} alt="QR" className="w-48 h-48 object-contain"/>
                  </div>
@@ -467,7 +579,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                       </div>
                     </div>
                  </div>
-                 <button onClick={confirmDeposit} className="bg-emerald-600 w-full py-3 rounded-xl font-bold text-white hover:bg-emerald-500 mb-2">ĐÃ CHUYỂN KHOẢN XONG</button>
+                 <button onClick={confirmDeposit} className="bg-emerald-600 w-full py-3 rounded-xl font-bold text-white hover:bg-emerald-500 mb-2 transition">ĐÃ CHUYỂN KHOẢN XONG</button>
                  <p className="text-[10px] text-gray-500">Hệ thống sẽ tự động cộng tiền ngay khi Admin duyệt.</p>
                </div>
              )}
@@ -476,13 +588,12 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       </main>
 
       <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]">
-        <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-700 hover:text-white flex items-center justify-center gap-1 mx-auto"><Lock size={10}/> ADMIN</button>
+        <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-700 hover:text-white flex items-center justify-center gap-1 mx-auto opacity-50 hover:opacity-100 transition"><Lock size={10}/> ADMIN</button>
       </footer>
     </div>
   );
 };
 
-// --- GIAO DIỆN ADMIN ---
 const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const [products, setProducts] = useState([]);
   const [deposits, setDeposits] = useState([]);
@@ -516,7 +627,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       const snap = await getDoc(uRef);
       await updateDoc(uRef, { balance: (snap.data()?.balance || 0) + d.amount });
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), { status: 'approved' });
-      showToast("Đã duyệt!", "success");
+      showToast("Đã duyệt! Tiền về ví khách ngay lập tức.", "success");
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -536,7 +647,6 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                 <input type="number" className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Giá (1 acc)" value={newProd.price} onChange={e=>setNewProd({...newProd, price:e.target.value})} required/>
                 <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-emerald-500" placeholder="Tag" value={newProd.tag} onChange={e=>setNewProd({...newProd, tag:e.target.value})} />
              </div>
-             
              <div>
                <label className="text-xs text-gray-500 block mb-1">DANH SÁCH ACC (Mỗi dòng 1 nick - Định dạng: User|Pass)</label>
                <textarea 
@@ -548,7 +658,6 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
                />
                <p className="text-[10px] text-gray-500 mt-1">Hệ thống sẽ tự đếm số dòng làm số lượng tồn kho.</p>
              </div>
-
              <button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white py-3 font-bold mt-2 rounded">ĐĂNG BÁN NGAY</button>
            </form>
         </div>
