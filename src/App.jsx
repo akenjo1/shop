@@ -31,7 +31,7 @@ import {
   Lock, Terminal, Image as ImageIcon, CreditCard,
   AlertTriangle, ArrowRight, Tag, Database, Menu, 
   History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, 
-  Eye, EyeOff, Package, Globe, Settings
+  Eye, EyeOff, Package, Globe, Box, Settings
 } from 'lucide-react';
 
 // ==========================================
@@ -103,7 +103,8 @@ const formatVND = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', cur
 
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
-  const bg = type === 'success' ? 'bg-emerald-600' : 'bg-rose-600';
+  // Đã sửa lỗi syntax ở dòng dưới đây
+  const bg = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
   return (
     <div className={`fixed top-6 right-6 ${bg} text-white px-6 py-4 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 animate-slide-in border border-white/10`}>
       <span className="font-bold">{message}</span>
@@ -425,7 +426,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
             <div>
               <div className="flex items-center gap-2 mb-6"><div className="w-1 h-6 bg-emerald-500 rounded-full"></div><h2 className="text-xl font-bold text-white">SẢN PHẨM MỚI NHẤT</h2></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {products.length === 0 && <div className="col-span-full text-center py-12 border border-dashed border-gray-800 rounded-xl"><Search size={32} className="mx-auto mb-2 opacity-30"/><p className="text-gray-500">Kho hàng đang được cập nhật...</p></div>}
+                {products.length === 0 && <div className="col-span-full text-center py-12 border border-dashed border-gray-800 rounded-xl"><Search size={32} className="mx-auto mb-2 opacity-30"/><p className="text-gray-500">Kho hàng đang cập nhật...</p></div>}
                 {products.map(p => {
                   const stockCount = p.stock ? p.stock.length : 0;
                   return (
@@ -463,9 +464,9 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
                  <h2 className="text-xl font-bold mb-2 text-white">QUÉT MÃ QR ĐỂ THANH TOÁN</h2>
                  <p className="text-xs text-rose-400 mb-4 flex justify-center gap-1 items-center bg-rose-500/10 py-1 rounded border border-rose-500/20"><Clock size={12}/> Hết hạn sau: {formatTime(timeLeft)}</p>
                  <div className="bg-white p-4 rounded-xl mb-4 inline-block shadow-xl">
-                    {/* QR Code Mới: Ưu tiên link ảnh riêng (nếu có), không thì dùng VietQR */}
-                    {bankConfig.QR_URL ? (
-                       <img src={bankConfig.QR_URL} alt="QR Custom" className="w-48 h-48 object-contain"/>
+                    {/* Hiển thị QR Ảnh Upload (Base64) hoặc VietQR */}
+                    {bankConfig.QR_IMAGE ? (
+                       <img src={bankConfig.QR_IMAGE} alt="QR Bank" className="w-48 h-48 object-contain"/>
                     ) : (
                        <img src={`https://img.vietqr.io/image/${bankConfig.BANK_ID}-${bankConfig.ACCOUNT_NO}-compact.png?amount=${depositAmount}&addInfo=${transCode}&accountName=${encodeURIComponent(bankConfig.ACCOUNT_NAME)}`} alt="QR Auto" className="w-48 h-48 object-contain"/>
                     )}
@@ -486,7 +487,9 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
         )}
       </main>
 
-      <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]"></footer>
+      <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]">
+        {/* Link Admin đã ẩn */}
+      </footer>
     </div>
   );
 };
@@ -503,8 +506,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
     const u1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), s => setProducts(s.docs.map(d => ({id:d.id, ...d.data()}))));
     const u2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'deposits'), s => setDeposits(s.docs.map(d => ({id:d.id, ...d.data()}))));
     
-    // Load config (Sửa lại path đúng để không bị crash)
-    // Đường dẫn: artifacts(col)/appId(doc)/public(col)/data(doc)/settings(col)/bank(doc)
+    // Load config path đúng
     const bankDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank');
     getDoc(bankDocRef).then(snap => {
       if(snap.exists()) setBankSettings(snap.data());
@@ -516,10 +518,22 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const handleUpdateBank = async (e) => {
     e.preventDefault();
     try {
-      // Lưu vào đường dẫn chuẩn
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'bank'), bankSettings);
       showToast("Cập nhật ngân hàng thành công!", "success");
     } catch (e) { showToast("Lỗi lưu cấu hình", "error"); }
+  };
+
+  // Xử lý upload ảnh (Convert file sang Base64)
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1000000) return showToast("Ảnh quá lớn! Hãy chọn ảnh < 1MB", "error"); // Giới hạn 1MB
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBankSettings({...bankSettings, QR_IMAGE: reader.result});
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAdd = async (e) => {
@@ -542,7 +556,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       const snap = await getDoc(uRef);
       await updateDoc(uRef, { balance: (snap.data()?.balance || 0) + d.amount });
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), { status: 'approved' });
-      showToast("Đã duyệt!", "success");
+      showToast("Đã duyệt! Tiền về ví khách ngay lập tức.", "success");
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -558,34 +572,36 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
         {/* CỘT 1: CẤU HÌNH NGÂN HÀNG + ĐĂNG BÁN */}
         <div className="space-y-6">
            
-           {/* BANK CONFIG FORM */}
+           {/* BANK CONFIG FORM (UPDATED) */}
            <div className="bg-[#111] border border-blue-900/50 p-5 rounded-lg shadow-lg">
               <h3 className="text-blue-400 font-bold mb-4 text-sm flex gap-2 items-center"><Settings size={16}/> CẤU HÌNH NGÂN HÀNG</h3>
               <form onSubmit={handleUpdateBank} className="space-y-3">
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase">Mã NH (MB, VCB...)</label>
+                  <label className="text-[10px] text-gray-500 uppercase">Tên NH</label>
                   <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
-                    value={bankSettings.BANK_ID} onChange={e => setBankSettings({...bankSettings, BANK_ID: e.target.value})} placeholder="Không bắt buộc"/>
+                    value={bankSettings.BANK_ID} onChange={e => setBankSettings({...bankSettings, BANK_ID: e.target.value})} placeholder="Tùy chọn"/>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                    <div>
                      <label className="text-[10px] text-gray-500 uppercase">Số TK</label>
                      <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
-                       value={bankSettings.ACCOUNT_NO} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NO: e.target.value})} placeholder="Không bắt buộc"/>
+                       value={bankSettings.ACCOUNT_NO} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NO: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
                    <div>
                      <label className="text-[10px] text-gray-500 uppercase">Tên Chủ TK</label>
                      <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500" 
-                       value={bankSettings.ACCOUNT_NAME} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NAME: e.target.value})} placeholder="Không bắt buộc"/>
+                       value={bankSettings.ACCOUNT_NAME} onChange={e => setBankSettings({...bankSettings, ACCOUNT_NAME: e.target.value})} placeholder="Tùy chọn"/>
                    </div>
                 </div>
+                
+                {/* UPLOAD QR IMAGE */}
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase">Link Ảnh QR (Tùy chọn)</label>
-                  <input className="w-full bg-black border border-gray-700 p-2 text-white outline-none focus:border-blue-500 placeholder-gray-700" 
-                    placeholder="https://... (Nếu điền sẽ dùng ảnh này)"
-                    value={bankSettings.QR_URL} onChange={e => setBankSettings({...bankSettings, QR_URL: e.target.value})} />
+                  <label className="text-[10px] text-gray-500 uppercase flex gap-1 items-center mb-1"><Upload size={10}/> Tải ảnh QR (BẮT BUỘC)</label>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"/>
+                  {bankSettings.QR_IMAGE && <p className="text-[10px] text-emerald-500 mt-1">✓ Đã có ảnh QR</p>}
                 </div>
-                <button className="w-full bg-blue-700 hover:bg-blue-600 text-white py-2 font-bold rounded text-xs">LƯU CẤU HÌNH BANK</button>
+
+                <button className="w-full bg-blue-700 hover:bg-blue-600 text-white py-2 font-bold rounded text-xs">LƯU CẤU HÌNH</button>
               </form>
            </div>
 
@@ -651,6 +667,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
+  // KHỞI TẠO VIEW DỰA TRÊN URL (ĐỂ VÀO ADMIN)
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('panel') === 'admin' ? 'admin-login' : 'shop';
