@@ -30,7 +30,8 @@ import {
   LayoutDashboard, Wallet, Gamepad2, Zap, Star, 
   Lock, Terminal, Image as ImageIcon, CreditCard,
   AlertTriangle, ArrowRight, Tag, Database, Menu, 
-  History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, Package
+  History, Clock, X, QrCode, Copy, ChevronDown, ChevronUp, 
+  Eye, EyeOff, Clipboard
 } from 'lucide-react';
 
 // ==========================================
@@ -84,18 +85,69 @@ const Toast = ({ message, type, onClose }) => {
   );
 };
 
+// --- COMPONENT HIỂN THỊ 1 DÒNG TÀI KHOẢN (MỚI) ---
+const AccountRow = ({ accLine }) => {
+  const [showPass, setShowPass] = useState(false);
+  const [copied, setCopied] = useState(null); // 'user' or 'pass'
+
+  // Tách User|Pass
+  const parts = accLine.includes('|') ? accLine.split('|') : [accLine, ''];
+  const username = parts[0].trim();
+  const password = parts.slice(1).join('|').trim();
+
+  const handleCopy = (text, type) => {
+    navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  return (
+    <div className="bg-[#18181b] p-3 rounded border border-white/5 space-y-2">
+      {/* Hàng Tài Khoản */}
+      <div className="flex justify-between items-center bg-black/30 p-2 rounded">
+        <div className="flex-1 min-w-0 mr-2">
+          <p className="text-[10px] text-gray-500 uppercase font-bold">Tài khoản</p>
+          <p className="text-sm text-white font-mono truncate select-all">{username}</p>
+        </div>
+        <button 
+          onClick={() => handleCopy(username, 'user')}
+          className={`p-1.5 rounded transition ${copied === 'user' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:text-white'}`}
+          title="Copy Tài khoản"
+        >
+          {copied === 'user' ? <CheckCircle size={16}/> : <Copy size={16}/>}
+        </button>
+      </div>
+
+      {/* Hàng Mật Khẩu (Nếu có) */}
+      {password && (
+        <div className="flex justify-between items-center bg-black/30 p-2 rounded">
+          <div className="flex-1 min-w-0 mr-2">
+            <p className="text-[10px] text-gray-500 uppercase font-bold">Mật khẩu</p>
+            <div className="flex items-center gap-2">
+               <p className="text-sm text-yellow-400 font-mono truncate select-all">
+                 {showPass ? password : '••••••••••••'}
+               </p>
+               <button onClick={() => setShowPass(!showPass)} className="text-gray-500 hover:text-white transition">
+                 {showPass ? <EyeOff size={14}/> : <Eye size={14}/>}
+               </button>
+            </div>
+          </div>
+          <button 
+            onClick={() => handleCopy(password, 'pass')}
+            className={`p-1.5 rounded transition ${copied === 'pass' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:text-white'}`}
+            title="Copy Mật khẩu"
+          >
+            {copied === 'pass' ? <CheckCircle size={16}/> : <Copy size={16}/>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- COMPONENT CHI TIẾT ĐƠN HÀNG (Item Lịch sử) ---
 const HistoryItem = ({ item }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [copiedIndex, setCopiedIndex] = useState(null);
-
-  const handleCopy = (text, index) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  // Xử lý dữ liệu cũ (string) và mới (array)
   const accounts = Array.isArray(item.data) ? item.data : [item.data];
 
   return (
@@ -122,35 +174,9 @@ const HistoryItem = ({ item }) => {
 
       {isOpen && (
         <div className="p-4 bg-[#09090b] border-t border-white/10 space-y-3">
-          {accounts.map((accLine, idx) => {
-            // Tách User|Pass (Nếu có dấu |)
-            const parts = accLine.includes('|') ? accLine.split('|') : [accLine, ''];
-            const user = parts[0].trim();
-            const pass = parts.slice(1).join('|').trim(); // Ghép lại phần sau nếu pass có dấu |
-
-            return (
-              <div key={idx} className="bg-[#18181b] p-3 rounded border border-white/5 flex justify-between items-center group">
-                <div className="flex-1 min-w-0 pr-4">
-                   <div className="mb-2">
-                      <p className="text-[10px] text-gray-500 uppercase font-bold">Tài khoản</p>
-                      <p className="text-sm text-white font-mono truncate select-all">{user}</p>
-                   </div>
-                   {pass && (
-                     <div>
-                        <p className="text-[10px] text-gray-500 uppercase font-bold">Mật khẩu</p>
-                        <p className="text-sm text-yellow-400 font-mono truncate select-all">{pass}</p>
-                     </div>
-                   )}
-                </div>
-                <button 
-                  onClick={() => handleCopy(accLine, idx)}
-                  className={`p-2 rounded transition ${copiedIndex === idx ? 'bg-emerald-500 text-black' : 'bg-white/5 text-gray-400 hover:bg-white/20 hover:text-white'}`}
-                >
-                  {copiedIndex === idx ? <CheckCircle size={18}/> : <Copy size={18}/>}
-                </button>
-              </div>
-            );
-          })}
+          {accounts.map((accLine, idx) => (
+            <AccountRow key={idx} accLine={accLine} />
+          ))}
         </div>
       )}
     </div>
@@ -197,7 +223,6 @@ const BuyModal = ({ product, user, balance, onClose, onConfirm }) => {
   const [qty, setQty] = useState(1);
   const maxStock = product.stock ? product.stock.length : 0;
   
-  // Xử lý nút tăng giảm
   const changeQty = (val) => {
     let newQty = qty + val;
     if (newQty < 1) newQty = 1;
@@ -242,7 +267,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null); // Sản phẩm đang chọn mua
+  const [selectedProduct, setSelectedProduct] = useState(null); 
   
   // STATE NẠP TIỀN
   const [depositStep, setDepositStep] = useState(1);
@@ -268,43 +293,34 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
     return () => clearInterval(timer);
   }, [depositStep, timeLeft]);
 
-  // Xử lý mua hàng (Số lượng)
+  // Xử lý mua hàng
   const handleConfirmBuy = async (prod, qty, total) => {
-    setSelectedProduct(null); // Đóng modal
+    setSelectedProduct(null); 
     if (!user) return showToast("Vui lòng đăng nhập!", "error");
     if ((userData?.balance || 0) < total) return showToast("Số dư không đủ!", "error");
 
     try {
       const prodRef = doc(db, 'artifacts', appId, 'public', 'data', 'products', prod.id);
-      
-      // Transaction để đảm bảo không bị mua trùng
-      // Ở đây dùng logic đơn giản cho demo: Lấy mảng stock, cắt ra qty phần tử
       const prodSnap = await getDoc(prodRef);
       if (!prodSnap.exists()) return showToast("Hết hàng!", "error");
       
-      const currentStock = prodSnap.data().stock || []; // Mảng chứa các dòng tk|mk
+      const currentStock = prodSnap.data().stock || [];
       if (currentStock.length < qty) return showToast("Không đủ số lượng trong kho!", "error");
 
-      // Lấy ra n phần tử đầu tiên
       const itemsToBuy = currentStock.slice(0, qty);
       const remainingStock = currentStock.slice(qty);
 
-      // 1. Trừ tiền
       await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), { balance: userData.balance - total });
-      
-      // 2. Lưu lịch sử (Lưu mảng itemsToBuy)
       await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'purchases'), { 
         title: prod.title,
         price: prod.price,
         totalPrice: total,
-        data: itemsToBuy, // Lưu cả mảng
+        data: itemsToBuy,
         purchasedAt: new Date().toISOString() 
       });
-
-      // 3. Cập nhật kho hàng (Chỉ còn lại số dư)
       await updateDoc(prodRef, { stock: remainingStock });
       
-      alert(`🎉 MUA THÀNH CÔNG ${qty} TÀI KHOẢN!\n(Đã lưu vào Lịch sử mua hàng)`);
+      alert(`🎉 MUA THÀNH CÔNG!\n(Đã lưu vào Lịch sử mua hàng)`);
       setShowHistory(true);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -339,7 +355,6 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
     <div className="min-h-screen bg-[#09090b] text-white font-sans pb-20 relative">
       {showHistory && <HistoryModal user={user} onClose={() => setShowHistory(false)} />}
       
-      {/* Modal Mua Hàng */}
       {selectedProduct && (
         <BuyModal 
           product={selectedProduct} 
@@ -471,7 +486,6 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
 const AdminPanel = ({ user, onLogout, setView, showToast }) => {
   const [products, setProducts] = useState([]);
   const [deposits, setDeposits] = useState([]);
-  // DATA MỚI: dataTextarea dùng để nhập nhiều dòng
   const [newProd, setNewProd] = useState({ title: '', price: '', tag: 'VIP', desc: '', dataTextarea: '', image: '' });
 
   useEffect(() => {
@@ -482,15 +496,13 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    // Chuyển text area thành mảng (Mỗi dòng 1 nick)
     const stockList = newProd.dataTextarea.split('\n').filter(line => line.trim() !== '');
-    
     if (stockList.length === 0) return showToast("Vui lòng nhập ít nhất 1 tài khoản!", "error");
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), { 
         ...newProd, 
-        stock: stockList, // Lưu mảng stock
+        stock: stockList, 
         price: Number(newProd.price) 
       });
       showToast(`Đã thêm ${stockList.length} tài khoản vào kho!`, "success");
@@ -504,7 +516,7 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
       const snap = await getDoc(uRef);
       await updateDoc(uRef, { balance: (snap.data()?.balance || 0) + d.amount });
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'deposits', d.id), { status: 'approved' });
-      showToast("Đã duyệt! Tiền về ví khách ngay lập tức.", "success");
+      showToast("Đã duyệt!", "success");
     } catch (e) { showToast(e.message, "error"); }
   };
 
