@@ -60,9 +60,8 @@ const appId = 'shop-9d1ae';
 const SUPER_ADMIN_EMAIL = "admin@shop.com"; 
 
 // ==========================================
-// 2. KHO LOGO GOOGLE (SIÊU BỀN)
+// 2. KHO LOGO GOOGLE (SIÊU BỀN) & MAP TÊN MIỀN
 // ==========================================
-// Hàm lấy ảnh từ Google Server dựa trên tên miền
 const getGoogleLogo = (domain) => `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${domain}&size=128`;
 
 const DOMAIN_MAP = {
@@ -73,6 +72,7 @@ const DOMAIN_MAP = {
   'facebook': 'facebook.com',
   'tiktok': 'tiktok.com',
   'disney': 'disneyplus.com',
+  'hbo': 'hbo.com',
   
   // Công việc
   'adobe': 'adobe.com',
@@ -90,6 +90,7 @@ const DOMAIN_MAP = {
   'blackbox': 'blackbox.ai',
   'copilot': 'github.com',
   'midjourney': 'midjourney.com',
+  'claude': 'anthropic.com',
   
   // Game & App
   'ugphone': 'ugphone.com',
@@ -97,10 +98,11 @@ const DOMAIN_MAP = {
   'roblox': 'roblox.com',
   'valorant': 'playvalorant.com',
   'vpn': 'nordvpn.com',
-  '1.1.1.1': 'cloudflare.com'
+  '1.1.1.1': 'cloudflare.com',
+  'wtfast': 'wtfast.com'
 };
 
-// Component hiển thị ảnh thông minh (Tự fallback nếu lỗi)
+// Component SmartLogo: Tự động lấy ảnh, nếu lỗi thì hiện Icon
 const SmartLogo = ({ title, manualUrl, className }) => {
   const [src, setSrc] = useState('');
   const [error, setError] = useState(false);
@@ -115,7 +117,6 @@ const SmartLogo = ({ title, manualUrl, className }) => {
     const lower = (title || "").toLowerCase();
     let foundDomain = null;
 
-    // Tìm domain tương ứng với tên sản phẩm
     for (const [key, domain] of Object.entries(DOMAIN_MAP)) {
       if (lower.includes(key)) {
         foundDomain = domain;
@@ -126,14 +127,13 @@ const SmartLogo = ({ title, manualUrl, className }) => {
     if (foundDomain) {
       setSrc(getGoogleLogo(foundDomain));
     } else {
-      // Nếu không tìm thấy, dùng ảnh mặc định an toàn
       setError(true); 
     }
   }, [title, manualUrl]);
 
   if (error || !src) {
     return (
-      <div className={`${className} bg-violet-900/20 flex items-center justify-center text-violet-400`}>
+      <div className={`${className} bg-violet-900/20 flex items-center justify-center text-violet-400 border border-white/10 rounded-lg`}>
         <Box size="50%" />
       </div>
     );
@@ -149,6 +149,14 @@ const SmartLogo = ({ title, manualUrl, className }) => {
   );
 };
 
+// --- Hàng Mẫu ---
+const SHOWCASE_PRODUCTS = [
+  { id: 'demo1', title: 'Netflix Premium 4K', price: 69000, tag: 'Best Seller' },
+  { id: 'demo2', title: 'Spotify Premium 1 Năm', price: 299000, tag: 'Music' },
+  { id: 'demo3', title: 'Youtube Premium', price: 25000, tag: 'Hot' },
+  { id: 'demo4', title: 'Windows 11 Pro Key', price: 150000, tag: 'Soft' },
+];
+
 const formatVND = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
 
 const Toast = ({ message, type, onClose }) => {
@@ -162,7 +170,7 @@ const Toast = ({ message, type, onClose }) => {
   );
 };
 
-// --- ACCOUNT ROW (COPY RIÊNG BIỆT) ---
+// --- COMPONENT HIỂN THỊ DÒNG TÀI KHOẢN (User | Pass) ---
 const AccountRow = ({ accLine }) => {
   const [showPass, setShowPass] = useState(false);
   const [copied, setCopied] = useState(null);
@@ -179,6 +187,7 @@ const AccountRow = ({ accLine }) => {
 
   return (
     <div className="bg-[#18181b] p-3 rounded-lg border border-white/5 space-y-2 hover:border-violet-500/30 transition">
+      {/* User */}
       <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
         <div className="flex-1 min-w-0 mr-2">
           <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider flex items-center gap-1"><User size={10}/> Tài khoản</p>
@@ -187,11 +196,13 @@ const AccountRow = ({ accLine }) => {
         <button 
           onClick={() => handleCopy(username, 'user')}
           className={`p-2 rounded-md transition ${copied === 'user' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
+          title="Sao chép tài khoản"
         >
           {copied === 'user' ? <CheckCircle size={16}/> : <Copy size={16}/>}
         </button>
       </div>
 
+      {/* Pass */}
       {password && (
         <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
           <div className="flex-1 min-w-0 mr-2">
@@ -208,6 +219,7 @@ const AccountRow = ({ accLine }) => {
           <button 
             onClick={() => handleCopy(password, 'pass')}
             className={`p-2 rounded-md transition ${copied === 'pass' ? 'bg-emerald-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
+            title="Sao chép mật khẩu"
           >
             {copied === 'pass' ? <CheckCircle size={16}/> : <Copy size={16}/>}
           </button>
@@ -246,6 +258,7 @@ const HistoryItem = ({ item }) => {
 
       {isOpen && (
         <div className="p-4 bg-[#09090b] border-t border-white/10 space-y-3 animate-fade-in">
+          <p className="text-xs text-gray-500 italic mb-2">Đã mua {accounts.length} tài khoản:</p>
           {accounts.map((accLine, idx) => (
             <AccountRow key={idx} accLine={accLine} />
           ))}
@@ -588,7 +601,7 @@ const ShopView = ({ user, userData, onLogin, onLogout, setView, showToast }) => 
       </main>
 
       <footer className="border-t border-white/10 mt-8 py-8 text-center bg-[#09090b]">
-        <button onClick={() => setView('admin-login')} className="text-[10px] text-gray-700 hover:text-white flex items-center justify-center gap-1 mx-auto opacity-50 hover:opacity-100 transition"><Lock size={10}/> ADMIN</button>
+        {/* Nút Admin đã bị xóa */}
       </footer>
     </div>
   );
@@ -704,7 +717,11 @@ const AdminPanel = ({ user, onLogout, setView, showToast }) => {
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [view, setView] = useState('shop');
+  // KHỞI TẠO VIEW DỰA TRÊN URL (ĐỂ VÀO ADMIN)
+  const [view, setView] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('panel') === 'admin' ? 'admin-login' : 'shop';
+  });
   const [toast, setToast] = useState({ msg: '', type: '' });
 
   const showToast = (msg, type) => { setToast({msg, type}); setTimeout(()=>setToast({msg:'',type:''}), 3000); };
@@ -716,7 +733,8 @@ export default function App() {
         const unsubUser = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid), (docSnap) => {
           if (docSnap.exists()) {
             setUserData(docSnap.data());
-            if (docSnap.data().email === SUPER_ADMIN_EMAIL && view === 'admin-login') setView('admin-panel');
+            // Nếu đã login và đang ở màn hình login admin -> Vào thẳng panel
+            if (view === 'admin-login') setView('admin-panel');
           } else {
             setDoc(doc(db, 'artifacts', appId, 'users', u.uid), { email: u.email, balance: 0, role: 'user', createdAt: serverTimestamp() });
           }
@@ -747,7 +765,6 @@ export default function App() {
                  <input name="email" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600" placeholder="Email Admin" />
                  <input type="password" name="password" className="w-full bg-black border border-gray-800 text-white p-3 text-xs outline-none focus:border-rose-600" placeholder="Mật khẩu" />
                  <button className="w-full bg-rose-700 text-white py-2 font-bold text-xs mt-4">LOGIN</button>
-                 <button type="button" onClick={()=>setView('shop')} className="w-full text-gray-600 text-[10px] mt-2 hover:text-white">BACK</button>
               </form>
            </div>
         </div>
